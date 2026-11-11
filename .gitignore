@@ -1,0 +1,9 @@
+# Nunca subir para o GitHub: chave de acesso ao Firebase e dados exportados de leads
+chave*.json
+*-firebase-adminsdk-*.json
+dados/
+exportacao/
+*.xlsx
+*.csv
+__pycache__/
+.venv/

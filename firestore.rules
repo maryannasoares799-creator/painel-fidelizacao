@@ -1,0 +1,47 @@
+rules_version = '2';
+
+// Regras de acesso do Painel de Fidelização.
+// - O time entra com o e-mail da empresa (link de acesso enviado por e-mail, que confirma o endereço).
+// - Quem está na coleção "operadores" (um documento por e-mail) entra mesmo com outro e-mail
+//   (por exemplo, a conta Google da dona do projeto).
+// - Todo mundo da empresa vê os números (pastas, disparos, institucional, listas do ColdZap).
+// - Só operadores veem e marcam os dados dos leads e alteram o painel.
+// - A coleção "operadores" só é alterada pelo console do Firebase ou pelo script de administração.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function verificado() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function daEmpresa() {
+      return verificado() && request.auth.token.email.matches('.*@solucoesindustriais[.]com[.]br$');
+    }
+
+    function operador() {
+      return verificado()
+        && exists(/databases/$(database)/documents/operadores/$(request.auth.token.email));
+    }
+
+    function podeVer() {
+      return daEmpresa() || operador();
+    }
+
+    // Números: leitura para a empresa, escrita para operadores.
+    match /pastas/{id}        { allow read: if podeVer(); allow write: if operador(); }
+    match /disparos/{id}      { allow read: if podeVer(); allow write: if operador(); }
+    match /institucional/{id} { allow read: if podeVer(); allow write: if operador(); }
+    match /coldzap/{id}       { allow read: if podeVer(); allow write: if operador(); }
+
+    // Dados de leads (nome, e-mail, celular): só operadores.
+    match /leads/{id}         { allow read, write: if operador(); }
+    match /bases/{id}         { allow read, write: if operador(); }
+    match /coldzap_leads/{id} { allow read, write: if operador(); }
+
+    // Cada pessoa só consegue ver se o próprio e-mail é de operador.
+    match /operadores/{email} {
+      allow read: if verificado() && request.auth.token.email == email;
+      allow write: if false;
+    }
+  }
+}
