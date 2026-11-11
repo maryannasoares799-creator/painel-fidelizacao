@@ -7,3 +7,6 @@ exportacao/
 *.csv
 __pycache__/
 .venv/
+
+# Configuração local do Claude (prévia)
+.claude/

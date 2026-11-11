@@ -47,9 +47,10 @@ function somar(lista) {
 function metricasPasta(p) { return somar(state.disparos.filter((d) => d.pasta === p.id).map((d) => metricasDisparo(d).geral)); }
 
 /* ---------- navegação ---------- */
-const FRENTE = (r) => (["institucional", "inst", "inst-novo"].includes(r.tipo) ? "institucional" : ["coldzap", "czd"].includes(r.tipo) ? "coldzap" : "fidelizacao");
+const FRENTE = (r) => (r.tipo === "geral" ? "geral" : ["institucional", "inst", "inst-novo"].includes(r.tipo) ? "institucional" : ["coldzap", "czd"].includes(r.tipo) ? "coldzap" : "fidelizacao");
 function hashDe(r) {
-  if (r.tipo === "inicio") return "";
+  if (r.tipo === "geral") return "";
+  if (r.tipo === "inicio") return "fidelizacao";
   if (r.tipo === "institucional" || r.tipo === "coldzap") return r.tipo;
   if (r.tipo === "inst-novo") return "institucional-novo";
   return r.id;
@@ -61,7 +62,8 @@ function ir(rota) {
 }
 function rotaDoHash() {
   const h = decodeURIComponent((location.hash || "").slice(1));
-  if (!h) return { tipo: "inicio" };
+  if (!h) return { tipo: "geral" };
+  if (h === "fidelizacao") return { tipo: "inicio" };
   if (h === "institucional") return { tipo: "institucional" };
   if (h === "institucional-novo") return { tipo: "inst-novo" };
   if (h === "coldzap") return { tipo: "coldzap" };
@@ -69,13 +71,17 @@ function rotaDoHash() {
   if (h.startsWith("cz-")) return { tipo: "czd", id: h };
   if (state.disparos.some((d) => d.id === h)) return { tipo: "disparo", id: h };
   if (state.pastas.some((p) => p.id === h)) return { tipo: "pasta", id: h };
-  return { tipo: "inicio" };
+  return { tipo: "geral" };
 }
 
 function abas() {
   const f = FRENTE(state.rota);
-  $("abas").innerHTML = [["fidelizacao", "inicio", "Fidelização"], ["institucional", "institucional", "Institucional"], ["coldzap", "coldzap", "ColdZap"]]
-    .map(([k, destino, nome]) => `<button type="button" class="tab" data-ir="${destino}"${f === k ? ' aria-current="page"' : ""}>${nome}</button>`).join("");
+  $("abas").innerHTML = `<div class="menu-rotulo">Frentes</div>` + [
+    ["geral", "geral", "ti-layout-dashboard", "Visão geral"],
+    ["fidelizacao", "inicio", "ti-refresh", "Fidelização"],
+    ["institucional", "institucional", "ti-building", "Institucional"],
+    ["coldzap", "coldzap", "ti-brand-whatsapp", "ColdZap"],
+  ].map(([k, destino, ico, nome]) => `<button type="button" class="menu-item" data-ir="${destino}"${f === k ? ' aria-current="page"' : ""}><i class="ti ${ico}" aria-hidden="true"></i>${nome}</button>`).join("");
 }
 function crumbs() {
   const c = $("crumbs"); const r = state.rota; const sep = `<span aria-hidden="true">/</span>`;
@@ -114,7 +120,7 @@ const situacao = (d) => (d.enviado_em ? `<span class="tag enviado">Enviado em ${
 
 /* ---------- telas (fidelização) ---------- */
 function telaInicio() {
-  $("titulo").textContent = "Painel de Fidelização";
+  $("titulo").textContent = "Fidelização";
   const total = somar(state.disparos.map((d) => metricasDisparo(d).geral));
   const pastas = [...state.pastas].sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99));
   return `<div style="display:grid;gap:26px">
@@ -127,7 +133,7 @@ function telaInicio() {
       <div class="grid-cards">${pastas.map((p) => {
         const m = metricasPasta(p); const n = state.disparos.filter((d) => d.pasta === p.id).length;
         return `<button type="button" class="card" data-ir="pasta:${esc(p.id)}">
-          <div class="top"><div><div class="nome">${esc(p.nome)}</div><div class="sub">${n} disparo(s) · ${m.total} leads</div></div><span class="folder-ico" aria-hidden="true"></span></div>
+          <div class="top"><div><div class="nome">${esc(p.nome)}</div><div class="sub">${n} disparo(s) · ${m.total} leads</div></div><span class="folder-ico" aria-hidden="true"><i class="ti ti-folder"></i></span></div>
           <div class="stats"><div class="stat"><b>${br(pct(m.respostas, m.enviados))}%</b><span>resposta</span></div><div class="stat"><b>${m.interessados}</b><span>interessados</span></div><div class="stat"><b>${m.voltaram}</b><span>voltaram a cotar</span></div></div>
           <span class="go">Abrir pasta</span></button>`;
       }).join("")}<div class="card nova"><div class="nome" style="font:700 16px var(--display)">Próximo produto</div><div class="sub">Novas pastas aparecem aqui quando um produto entra no projeto.</div></div></div>
@@ -411,7 +417,7 @@ function telaColdzap() {
     <section aria-labelledby="h-zt"><div class="section-head"><h2 id="h-zt">Todas as listas</h2><span class="note">${ds.length} lista(s) de WhatsApp</span></div>${czKpis(tot)}</section>
     <section aria-labelledby="h-zl"><div class="section-head"><h2 id="h-zl">Listas por fornecedor</h2></div>
       <div class="grid-cards">${ds.map((d) => { const m = czMetricas(d); return `<button type="button" class="card" data-ir="czd:${esc(d.id)}">
-        <div class="top"><div><div class="nome">${esc(d.empresa)}</div><div class="sub">${esc(d.chave || "")}${d.produto ? " · " + esc(d.produto) : ""}</div></div><span class="zap-ico" aria-hidden="true"></span></div>
+        <div class="top"><div><div class="nome">${esc(d.empresa)}</div><div class="sub">${esc(d.chave || "")}${d.produto ? " · " + esc(d.produto) : ""}</div></div><span class="zap-ico" aria-hidden="true"><i class="ti ti-brand-whatsapp"></i></span></div>
         <div class="sub">Preparada em ${fmtData(d.data)}${d.remetente ? " · envia " + esc(d.remetente) : ""}</div>
         <div class="stats"><div class="stat"><b>${m.enviados}/${m.total}</b><span>enviados</span></div><div class="stat"><b>${br(pct(m.respostas, m.enviados))}%</b><span>resposta</span></div><div class="stat"><b>${m.orcamentos}</b><span>orçamentos</span></div></div>
         <span class="go">Abrir lista</span></button>`; }).join("")}
@@ -504,7 +510,41 @@ function render() {
   $("view").innerHTML =
     r.tipo === "pasta" ? telaPasta(r.id) : r.tipo === "disparo" ? telaDisparo(r.id)
     : r.tipo === "institucional" ? telaInstitucional() : r.tipo === "inst" ? telaInstForm(r.id) : r.tipo === "inst-novo" ? telaInstForm(null)
-    : r.tipo === "coldzap" ? telaColdzap() : r.tipo === "czd" ? telaCzDisparo(r.id) : telaInicio();
+    : r.tipo === "coldzap" ? telaColdzap() : r.tipo === "czd" ? telaCzDisparo(r.id)
+    : r.tipo === "inicio" ? telaInicio() : telaGeral();
+}
+
+/* ---------- Visão geral: as três frentes lado a lado ---------- */
+function telaGeral() {
+  $("titulo").textContent = "Visão geral";
+  const f = somar(state.disparos.map((d) => metricasDisparo(d).geral));
+  const i = instSomar(state.inst);
+  const z = czSomar(state.cz.map(czMetricas));
+  const enviados = f.enviados + i.env + z.enviados;
+  const respostas = f.respostas + i.respostas + z.respostas;
+  const orcamentos = f.pedidos + i.orcamentos + z.orcamentos;
+  const mini = (itens) => `<div class="mini">${itens.map(([l, v]) => `<div><b>${v}</b><span>${l}</span></div>`).join("")}</div>`;
+  const frente = (ico, cls, nome, sub, destino, itens) => `<section class="frente" aria-label="${nome}">
+    <div class="frente-top"><div class="titulo"><span class="${cls}" aria-hidden="true"><i class="ti ${ico}"></i></span><div><b>${nome}</b><span>${sub}</span></div></div>
+      <button type="button" class="btn secundario" data-ir="${destino}">Abrir ${nome.toLowerCase()}</button></div>
+    ${mini(itens)}</section>`;
+  return `<div style="display:grid;gap:22px">
+    <p class="lead-txt">Os disparos do Growth em um só lugar: quem já cotou e foi chamado de volta, as cartas por segmento e o WhatsApp do cold mail.</p>
+    ${kpiGrid([
+      ["Disparos registrados", state.disparos.length + state.inst.length + state.cz.length, `${state.disparos.length} fidelização · ${state.inst.length} institucional · ${state.cz.length} ColdZap`],
+      ["Mensagens enviadas", enviados, "e-mail e WhatsApp somados"],
+      ["Respostas", respostas, `${br(pct(respostas, enviados))}% das enviadas`],
+      ["Orçamentos gerados", orcamentos, `${br(pct(orcamentos, respostas))}% das respostas`, true],
+    ])}
+    <div class="frentes">
+      ${frente("ti-refresh", "folder-ico", "Fidelização", `Quem já cotou, por produto · ${state.disparos.length} disparo(s)`, "inicio",
+        [["Enviados", f.enviados], ["Responderam", f.respostas], ["Orçamentos", f.pedidos], ["Voltaram a cotar", f.voltaram]])}
+      ${frente("ti-building", "folder-ico", "Institucional", `Cartas por segmento · ${state.inst.length} disparo(s)`, "institucional",
+        [["Entregues", i.entregues], ["% lido", `${br(pct(i.abertos, i.entregues))}%`], ["Respostas", i.respostas], ["Orçamentos", i.orcamentos]])}
+      ${frente("ti-brand-whatsapp", "zap-ico", "ColdZap", `WhatsApp do cold mail · ${state.cz.length} lista(s)`, "coldzap",
+        [["Enviados", z.enviados], ["Número não existe", z.nao_existe], ["Responderam", z.respostas], ["Orçamentos", z.orcamentos]])}
+    </div>
+  </div>`;
 }
 function manterFoco(fn) {
   const foco = document.activeElement?.id; const pos = foco && document.activeElement.selectionStart;
@@ -774,8 +814,10 @@ const limparUrl = () => { try { history.replaceState(null, "", location.pathname
 let assinaturas = []; let avisoLogin = "";
 function telaLogin(msg, ok) {
   const dominio = String(window.DOMINIO_EMPRESA || "");
+  document.body.classList.add("sem-menu");
   $("titulo").textContent = "Painel de Fidelização"; $("abas").innerHTML = ""; $("crumbs").innerHTML = ""; $("conta").hidden = true;
   $("view").innerHTML = `<div class="login">
+    <div class="selo"><i class="ti ti-chart-bar" aria-hidden="true"></i><div><b>Soluções Industriais</b><br><span class="note">Growth · Disparos</span></div></div>
     <h2>Entrar</h2>
     <p class="lead-txt" style="margin:0">Digite o seu e-mail da empresa. Você recebe um link de acesso no Outlook: abra o link neste mesmo computador e pronto.</p>
     <form id="formLink" class="login-form" novalidate>
@@ -787,6 +829,7 @@ function telaLogin(msg, ok) {
   </div>`;
 }
 function telaConfirmarEmail(msg) {
+  document.body.classList.add("sem-menu");
   $("titulo").textContent = "Painel de Fidelização"; $("abas").innerHTML = ""; $("crumbs").innerHTML = ""; $("conta").hidden = true;
   $("view").innerHTML = `<div class="login">
     <h2>Confirme o seu e-mail</h2>
@@ -876,6 +919,7 @@ function limparDados() {
       return auth.signOut();
     }
     state.podeEditar = operador;
+    document.body.classList.remove("sem-menu");
     $("conta").hidden = false; $("contaEmail").textContent = email;
     abas();
 

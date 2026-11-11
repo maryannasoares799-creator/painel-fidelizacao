@@ -6,21 +6,26 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Painel de Fidelização</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <link rel="stylesheet" href="estilo.css">
 </head>
-<body>
-<div class="wrap">
-  <header>
-    <div class="topo">
-      <div class="eyebrow">Soluções Industriais · Growth</div>
-      <div class="conta" id="conta" hidden><span id="contaEmail"></span><button type="button" class="linkbtn" id="sair">Sair</button></div>
+<body class="sem-menu">
+<div class="app">
+  <aside class="lateral" aria-label="Menu">
+    <div class="marca"><b>Soluções Industriais</b><span>Growth · Disparos</span></div>
+    <nav class="menu" id="abas" aria-label="Frentes"></nav>
+    <div class="conta" id="conta" hidden><span id="contaEmail"></span><button type="button" id="sair">Sair</button></div>
+  </aside>
+  <div class="principal">
+    <div class="conteudo">
+      <header class="cabecalho">
+        <nav class="crumbs" id="crumbs" aria-label="Você está em"></nav>
+        <h1 id="titulo">Painel de Fidelização</h1>
+      </header>
+      <main id="view"><div class="empty">Carregando o painel…</div></main>
     </div>
-    <h1 id="titulo">Painel de Fidelização</h1>
-    <nav class="tabs" id="abas" aria-label="Frentes"></nav>
-    <nav class="crumbs" id="crumbs" aria-label="Você está em"></nav>
-  </header>
-  <main id="view"><div class="empty">Carregando o painel…</div></main>
+  </div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
