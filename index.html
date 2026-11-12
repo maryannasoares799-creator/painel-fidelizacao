@@ -6,22 +6,33 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Painel de Fidelização</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <link rel="stylesheet" href="estilo.css">
+<script>/* aplica o tema escolhido antes de desenhar a página */try{var t=localStorage.getItem("painel-tema");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
 </head>
 <body class="sem-menu">
 <div class="app">
   <aside class="lateral" aria-label="Menu">
-    <div class="marca"><b>Soluções Industriais</b><span>Growth · Disparos</span></div>
-    <nav class="menu" id="abas" aria-label="Frentes"></nav>
-    <div class="conta" id="conta" hidden><span id="contaEmail"></span><button type="button" id="sair">Sair</button></div>
+    <div class="marca"><span class="logo" aria-hidden="true"><i class="ti ti-radar-2"></i></span><div><b>Soluções Industriais</b><span>Growth · Disparos</span></div></div>
+    <nav class="menu" id="abas" aria-label="Seções"></nav>
+    <div class="lateral-pe">
+      <button type="button" class="tema" data-tema aria-label="Alternar entre modo claro e escuro"></button>
+      <div class="aovivo" id="aovivo" hidden><span class="pulso" aria-hidden="true"></span><span id="aovivoTxt">Ao vivo</span></div>
+      <div class="conta" id="conta" hidden>
+        <span class="avatar" id="contaAvatar" aria-hidden="true"></span>
+        <div class="conta-txt"><span id="contaEmail"></span><span id="contaPapel"></span></div>
+        <button type="button" id="sair" aria-label="Sair"><i class="ti ti-logout" aria-hidden="true"></i><span>Sair</span></button>
+      </div>
+    </div>
   </aside>
   <div class="principal">
     <div class="conteudo">
       <header class="cabecalho">
         <nav class="crumbs" id="crumbs" aria-label="Você está em"></nav>
         <h1 id="titulo">Painel de Fidelização</h1>
+        <p class="subtitulo" id="subtitulo" hidden></p>
       </header>
       <main id="view"><div class="empty">Carregando o painel…</div></main>
     </div>
