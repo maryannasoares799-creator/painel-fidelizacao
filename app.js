@@ -13,6 +13,7 @@ const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0);
 const br = (n) => String(n).replace(".", ",");
 const fmtData = (s) => { if (!s) return ""; const [y, m, d] = s.slice(0, 10).split("-"); return d ? `${d}/${m}/${y}` : s; };
 const hoje = () => new Date().toISOString().slice(0, 10);
+const hojeLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 const num = (v) => (v === "" || v == null || isNaN(+v) ? null : +v);
 const VAZIO = { total: 0, enviados: 0, respostas: 0, interessados: 0, sairam: 0, pedidos: 0, voltaram: 0 };
 const carregando = () => `<div class="empty"><i class="ti ti-loader-2" aria-hidden="true"></i>Carregando…</div>`;
@@ -202,6 +203,33 @@ function classesBloco(d) {
     progresso([["Classe A", c.A, "seg-a"], ["Classe B", c.B, "seg-b"], ["Classe C", c.C, "seg-c"], ["Fora", fora, "seg-fora"]]) +
     `<p class="note">A: conta recorrente, recebe WhatsApp personalizado (ou e-mail personalizado sem celular). B e C: carta do grupo por e-mail. Fora: não recebe, com o motivo registrado na base.</p>`);
 }
+/* Envio do e-mail: o e-mail do disparo só conta como enviado quando o disparo tem a data de envio (enviado_em).
+   Só quem opera vê este bloco; ao salvar, as métricas guardadas no disparo são recalculadas. */
+function blocoEnvioEmail(d, mm) {
+  const n = mm.email.total || d.email || 0; const max = hojeLocal();
+  const data = (v) => `<label class="note" for="dataEnvio" style="display:flex;gap:8px;align-items:center">Data do envio <input type="date" id="dataEnvio" value="${esc(v)}" max="${max}"></label>`;
+  const corpo = d.enviado_em
+    ? `<div class="acoes">${data(d.enviado_em.slice(0, 10))}<button type="button" class="btn secundario" data-enviar-email="${esc(d.id)}"><i class="ti ti-device-floppy" aria-hidden="true"></i>Salvar data</button>
+        <span id="desmarcarBox"><button type="button" class="linkbtn" data-desmarcar-envio="${esc(d.id)}">Desmarcar envio</button></span></div>`
+    : `<div class="acoes">${data(max)}<button type="button" class="btn" data-enviar-email="${esc(d.id)}"><i class="ti ti-mail-check" aria-hidden="true"></i>Marcar e-mail como enviado</button></div>`;
+  return painel("h-env", "ti-mail-check", "Envio do e-mail", d.enviado_em ? `Enviado em ${fmtData(d.enviado_em)}` : "Ainda não marcado",
+    `<p class="note">${d.enviado_em ? `Os ${n} e-mails deste disparo contam como enviados desde ${fmtData(d.enviado_em)}. Se a data estiver errada, corrija aqui.`
+      : `Depois de disparar pelo BillionMail, marque aqui a data do envio. Os ${n} e-mails deste disparo passam a contar como enviados; o WhatsApp continua sendo marcado lead a lead.`}</p>${corpo}<span class="status-line" id="envioMsg" role="status"></span>`);
+}
+async function salvarEnvioEmail(id, data, btn, desmarcar = false) {
+  const d = state.disparos.find((x) => x.id === id); const msg = $("envioMsg"); if (!d || !db) return;
+  const aviso = (t) => { if (msg) { msg.textContent = t; msg.classList.add("err"); } };
+  if (!desmarcar && !/^\d{4}-\d{2}-\d{2}$/.test(data)) return aviso("Escolha a data do envio.");
+  if (data > hojeLocal()) return aviso("A data do envio não pode ser depois de hoje.");
+  btn.disabled = true;
+  try {
+    const d2 = { ...d, enviado_em: data }; const upd = { enviado_em: data };
+    if (state.leadsOk) { const ls = state.leads.filter((l) => l.disparo === id);
+      upd.metricas = { geral: calc(ls, d2), email: calc(ls.filter((l) => l.canal === "email"), d2), whatsapp: calc(ls.filter((l) => l.canal === "whatsapp"), d2) }; }
+    await db.collection("disparos").doc(id).update(upd);
+    Object.assign(d, upd); render();
+  } catch (e) { btn.disabled = false; aviso(semPermissao(e) ? "Você tem acesso só de leitura a este painel." : "Não foi possível salvar. Tente de novo em alguns segundos."); }
+}
 function cardDisparo(d) {
   const m = metricasDisparo(d).geral; const p = state.pastas.find((x) => x.id === d.pasta);
   return `<button type="button" class="card fid" data-ir="disparo:${esc(d.id)}">
@@ -289,6 +317,7 @@ function telaDisparo(id) {
       <div class="largo"><dt>Cartas</dt><dd>${esc(d.carta || "")}</dd></div>
       ${d.criterio ? `<div class="largo"><dt>Critério</dt><dd>${esc(d.criterio)}</dd></div>` : ""}
     </dl>
+    ${state.podeEditar && (mm.email.total || d.email) ? blocoEnvioEmail(d, mm) : ""}
     ${state.downloads && window.XLSX ? `<div class="acoes">
       ${d.campanha && window.ExcelJS ? `<button type="button" class="btn" data-campanha="${esc(d.id)}"><i class="ti ti-download" aria-hidden="true"></i>Baixar campanha</button>` : ""}
       ${state.leadsOk ? `<button type="button" class="btn secundario" data-baixar="${esc(d.id)}"><i class="ti ti-file-spreadsheet" aria-hidden="true"></i>Baixar base em Excel</button>` : ""}
@@ -1077,6 +1106,11 @@ rotuloTema();
 document.addEventListener("click", (ev) => {
   if (ev.target.closest("[data-tema]")) return trocarTema();
   if (ev.target.closest("[data-atualizar]")) return irParaVersao(versaoNova || VERSAO);
+  const ee = ev.target.closest("[data-enviar-email]"); if (ee) return salvarEnvioEmail(ee.dataset.enviarEmail, ($("dataEnvio")?.value || "").trim(), ee);
+  const de = ev.target.closest("[data-desmarcar-envio]");
+  if (de) { $("desmarcarBox").innerHTML = `<button type="button" class="btn perigo" data-desmarcar-ok="${esc(de.dataset.desmarcarEnvio)}">Confirmar: desmarcar envio</button> <button type="button" class="btn secundario" data-desmarcar-nao="1">Manter</button>`; return; }
+  if (ev.target.closest("[data-desmarcar-nao]")) return render();
+  const dok = ev.target.closest("[data-desmarcar-ok]"); if (dok) return salvarEnvioEmail(dok.dataset.desmarcarOk, "", dok, true);
   const dl = ev.target.closest("[data-baixar]"); if (dl) return baixar(dl.dataset.baixar, dl);
   const cp = ev.target.closest("[data-campanha]"); if (cp) return baixarCampanha(cp.dataset.campanha, cp);
   const rl = ev.target.closest("[data-relatorio]"); if (rl) return relatorioMensal(rl);
