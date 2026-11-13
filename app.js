@@ -634,6 +634,7 @@ function blocoCzLeads(d) {
   }).join("");
   return `<div class="bloco" id="czLeads">
     <div class="section-head" style="margin:0"><h2>Leads da lista</h2><span class="note">${todos.length} leads · marque o envio, a resposta e o orçamento</span></div>
+    ${state.podeEditar && todos.some((l) => !l.envio) ? `<div class="acoes" id="czMassa"><button type="button" class="btn secundario" data-cz-todos="${esc(d.id)}"><i class="ti ti-checks" aria-hidden="true"></i>Marcar todos como enviados</button><span class="note">${todos.filter((l) => !l.envio).length} lead(s) ainda sem envio. Depois, ajuste quem teve "Número não existe".</span></div>` : ""}
     <div class="filters">
       <input type="search" id="czbusca" value="${esc(state.busca)}" placeholder="Buscar por empresa, nome ou celular" aria-label="Buscar lead">
       <select id="fEnvio" aria-label="Filtrar envio"><option value="">Todos os envios</option><option value="pendente"${state.envio === "pendente" ? " selected" : ""}>Não enviado</option><option value="enviado"${state.envio === "enviado" ? " selected" : ""}>Enviado</option><option value="nao_existe"${state.envio === "nao_existe" ? " selected" : ""}>Número não existe</option></select>
@@ -642,6 +643,28 @@ function blocoCzLeads(d) {
     <div class="status-line" id="czStatusLine" role="status"></div>
     ${ls.length ? `<div class="tbl-wrap"><table><thead><tr><th class="num">#</th><th>Lead</th><th>O que cotou</th><th>Mensagem</th><th>Envio</th><th>Resposta</th><th>Orçamento</th><th>Observação</th></tr></thead><tbody>${linhas}</tbody></table></div>` : `<div class="empty">Nenhum lead com esses filtros.</div>`}
   </div>`;
+}
+/* Marca de uma vez como enviados os leads da lista que ainda estão sem envio (não mexe em quem já foi marcado). */
+async function marcarTodosCz(id, btn) {
+  if (!db) return;
+  const aviso = (t, e) => { const l = $("czStatusLine"); if (l) { l.textContent = t; l.classList.toggle("err", !!e); } };
+  const pend = state.czLeads.filter((l) => l.disparo === id && !l.envio);
+  if (!pend.length) return renderCzLeads();
+  btn.disabled = true;
+  const agora = new Date().toISOString();
+  try {
+    const lote = db.batch();
+    pend.forEach((l) => lote.update(db.collection("coldzap_leads").doc(l._id), { envio: "enviado", enviado_em: agora, atualizado_em: agora }));
+    await lote.commit();
+    pend.forEach((l) => Object.assign(l, { envio: "enviado", enviado_em: agora }));
+    const d = state.cz.find((x) => x.id === id); const extra = d && !d.enviado_em ? { enviado_em: hojeLocal() } : {};
+    try { await db.collection("coldzap").doc(id).update({ metricas: czCalc(state.czLeads.filter((x) => x.disparo === id)), ...extra }); if (d) Object.assign(d, extra); } catch (e) {}
+    render(); aviso(`${pend.length} lead(s) marcados como enviados.`);
+  } catch (e) {
+    btn.disabled = false;
+    if (semPermissao(e)) { state.podeEditar = false; return aviso("Você tem acesso só de leitura a este painel.", true); }
+    aviso("Não foi possível salvar. Tente de novo em alguns segundos.", true);
+  }
 }
 async function salvarCz(id, campo, valor, el) {
   if (!db) return;
@@ -1106,6 +1129,11 @@ rotuloTema();
 document.addEventListener("click", (ev) => {
   if (ev.target.closest("[data-tema]")) return trocarTema();
   if (ev.target.closest("[data-atualizar]")) return irParaVersao(versaoNova || VERSAO);
+  const ct = ev.target.closest("[data-cz-todos]");
+  if (ct) { const n = state.czLeads.filter((l) => l.disparo === ct.dataset.czTodos && !l.envio).length;
+    $("czMassa").innerHTML = `<button type="button" class="btn" data-cz-todos-ok="${esc(ct.dataset.czTodos)}"><i class="ti ti-checks" aria-hidden="true"></i>Confirmar: marcar ${n} lead(s) como enviados</button> <button type="button" class="btn secundario" data-cz-todos-nao="1">Cancelar</button>`; return; }
+  if (ev.target.closest("[data-cz-todos-nao]")) return renderCzLeads();
+  const cto = ev.target.closest("[data-cz-todos-ok]"); if (cto) return marcarTodosCz(cto.dataset.czTodosOk, cto);
   const ee = ev.target.closest("[data-enviar-email]"); if (ee) return salvarEnvioEmail(ee.dataset.enviarEmail, ($("dataEnvio")?.value || "").trim(), ee);
   const de = ev.target.closest("[data-desmarcar-envio]");
   if (de) { $("desmarcarBox").innerHTML = `<button type="button" class="btn perigo" data-desmarcar-ok="${esc(de.dataset.desmarcarEnvio)}">Confirmar: desmarcar envio</button> <button type="button" class="btn secundario" data-desmarcar-nao="1">Manter</button>`; return; }
