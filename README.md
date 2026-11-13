@@ -72,3 +72,4 @@ No GitHub gratuito, o GitHub Pages só publica repositório público. Por isso o
 - **Cópia de segurança:** `python scripts/admin_firebase.py --chave ... exportar PASTA`.
 - **Operadores:** para dar ou tirar acesso aos leads, use `operador adicionar` ou `operador remover`.
 - **Publicar uma mudança no painel:** rode `python scripts/nova_versao.py` antes do commit e depois faça o `git push`. O script marca uma versão nova, e quem estiver com o painel aberto ou com a página guardada no navegador passa a ver a versão nova sozinho: ao abrir, o painel recarrega; se já estiver aberto, aparece o aviso "Atualizar".
+- **Cold mail:** cada envio (base inteira, A ou B) é um documento na coleção `institucional` com `frente: "coldmail"`. Assim ele segue as mesmas regras de acesso: a empresa vê e quem opera edita. Os envios do mesmo fornecedor são agrupados pelo ID do cliente. Respostas e orçamentos são o total da campanha (e-mail + WhatsApp).

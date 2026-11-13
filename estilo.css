@@ -7,7 +7,7 @@
   --bg: #f3f5fa; --surface: #ffffff; --surface-2: #f7f9fc; --ink: #0f1b2d; --ink-2: #334155; --muted: #5f6f86; --line: #e2e8f0; --line-soft: #edf1f6;
   --marinho: #012f73; --marinho-900: #00163a; --marinho-ativo: #1c51a0; --marinho-texto: #b9cdec; --ciano: #38bdf8; --ciano-claro: #7dd3fc;
   --primaria: #1c51a0; --primaria-soft: #e8effa; --primaria-ink: #0c3a7a;
-  --f-fid: #1c51a0; --f-fid-soft: #e8effa; --f-inst: #c2670a; --f-inst-soft: #fcefe0; --f-cz: #0d9488; --f-cz-soft: #ddf3ef;
+  --f-fid: #1c51a0; --f-fid-soft: #e8effa; --f-inst: #c2670a; --f-inst-soft: #fcefe0; --f-cz: #0d9488; --f-cz-soft: #ddf3ef; --f-cm: #7c3aed; --f-cm-soft: #f0ebfd;
   --ok: #15803d; --ok-soft: #e6f5ec; --bad: #b91c1c; --bad-soft: #fdecec; --neutro: #5f6f86; --neutro-soft: #eef2f7;
   --cl-a: #012f73; --cl-b: #1c51a0; --cl-c: #6f93cc; --cl-fora: #a3aec0;
   --sombra: 0 1px 2px rgba(15, 27, 45, .05), 0 6px 20px -12px rgba(15, 27, 45, .14);
@@ -21,7 +21,7 @@
   --bg: #0b1220; --surface: #121b2c; --surface-2: #0f1828; --ink: #e6ecf5; --ink-2: #c3cede; --muted: #91a2ba; --line: #24324c; --line-soft: #1b273b;
   --marinho: #071a3d; --marinho-900: #040f26;
   --primaria: #7fa8e6; --primaria-soft: #1a2b47; --primaria-ink: #b8d0f2;
-  --f-fid: #5a8fe0; --f-fid-soft: #172a47; --f-inst: #cf7f22; --f-inst-soft: #362613; --f-cz: #24a898; --f-cz-soft: #0f312d;
+  --f-fid: #5a8fe0; --f-fid-soft: #172a47; --f-inst: #cf7f22; --f-inst-soft: #362613; --f-cz: #24a898; --f-cz-soft: #0f312d; --f-cm: #a970ec; --f-cm-soft: #261c3f;
   --ok: #5cc98a; --ok-soft: #133523; --bad: #f08a80; --bad-soft: #3b1c1b; --neutro: #91a2ba; --neutro-soft: #1b2638;
   --cl-a: #a9c6f0; --cl-b: #5a8fe0; --cl-c: #2f5a9a; --cl-fora: #4a5870;
   --sombra: 0 1px 2px rgba(0, 0, 0, .3); --sombra-hover: 0 12px 28px -14px rgba(0, 0, 0, .6); color-scheme: dark } }
@@ -29,7 +29,7 @@
   --bg: #0b1220; --surface: #121b2c; --surface-2: #0f1828; --ink: #e6ecf5; --ink-2: #c3cede; --muted: #91a2ba; --line: #24324c; --line-soft: #1b273b;
   --marinho: #071a3d; --marinho-900: #040f26;
   --primaria: #7fa8e6; --primaria-soft: #1a2b47; --primaria-ink: #b8d0f2;
-  --f-fid: #5a8fe0; --f-fid-soft: #172a47; --f-inst: #cf7f22; --f-inst-soft: #362613; --f-cz: #24a898; --f-cz-soft: #0f312d;
+  --f-fid: #5a8fe0; --f-fid-soft: #172a47; --f-inst: #cf7f22; --f-inst-soft: #362613; --f-cz: #24a898; --f-cz-soft: #0f312d; --f-cm: #a970ec; --f-cm-soft: #261c3f;
   --ok: #5cc98a; --ok-soft: #133523; --bad: #f08a80; --bad-soft: #3b1c1b; --neutro: #91a2ba; --neutro-soft: #1b2638;
   --cl-a: #a9c6f0; --cl-b: #5a8fe0; --cl-c: #2f5a9a; --cl-fora: #4a5870;
   --sombra: 0 1px 2px rgba(0, 0, 0, .3); --sombra-hover: 0 12px 28px -14px rgba(0, 0, 0, .6); color-scheme: dark }
@@ -99,6 +99,7 @@ body.sem-menu #view { display: grid; justify-items: center; }
 
 /* ---------- blocos básicos ---------- */
 .pilha { display: grid; gap: 24px; min-width: 0; }
+.pilha > *, .conteudo > *, section { min-width: 0; }
 .lead-txt { color: var(--muted); max-width: 78ch; }
 .section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; margin-bottom: 14px; }
 .section-head h2 { display: flex; align-items: center; gap: 8px; }
@@ -159,12 +160,13 @@ body.sem-menu #view { display: grid; justify-items: center; }
 .funil-legenda { font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; border-top: 1px solid var(--line-soft); padding-top: 12px; }
 
 /* ---------- frentes (visão geral) ---------- */
-.frentes { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px; }
+.frentes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 .frente { --cor: var(--f-fid); --cor-soft: var(--f-fid-soft); position: relative; overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: var(--raio); box-shadow: var(--sombra); padding: 20px; display: grid; gap: 16px; align-content: start; }
 .frente::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--cor); }
 .fid { --cor: var(--f-fid); --cor-soft: var(--f-fid-soft); }
 .inst { --cor: var(--f-inst); --cor-soft: var(--f-inst-soft); }
 .cz { --cor: var(--f-cz); --cor-soft: var(--f-cz-soft); }
+.cm { --cor: var(--f-cm); --cor-soft: var(--f-cm-soft); }
 .frente-top { display: flex; align-items: flex-start; gap: 12px; }
 .frente-top b { display: block; font: 600 16px var(--display); }
 .frente-top span { font-size: 13px; color: var(--muted); }
@@ -247,7 +249,7 @@ body.sem-menu #view { display: grid; justify-items: center; }
 .passo .eyebrow { margin-top: 4px; }
 .passo p { font-size: 13px; color: var(--muted); }
 .passo .onde { font-size: 12px; color: var(--primaria); display: inline-flex; gap: 5px; align-items: center; }
-.comparativo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto repeat(6, auto); gap: 0 16px; }
+.comparativo { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: auto repeat(6, auto); gap: 0 16px; }
 .comp { grid-row: span 7; display: grid; grid-template-rows: subgrid; background: var(--surface); border: 1px solid var(--line); border-radius: var(--raio); box-shadow: var(--sombra); overflow: hidden; position: relative; }
 .comp::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--cor); }
 .comp > * { padding: 12px 18px; border-top: 1px solid var(--line-soft); min-width: 0; }
@@ -445,6 +447,14 @@ input[type="email"] { width: 100%; padding: 10px 12px; }
 .selecao .btn { padding: 7px 12px; font-size: 13px; }
 th.sel, td.sel { width: 40px; padding-right: 0; }
 input[type="checkbox"] { accent-color: var(--marinho-ativo); width: 16px; height: 16px; }
+
+/* ---------- Cold mail: envios do fornecedor ---------- */
+.envios { display: grid; gap: 14px; }
+.envio { position: relative; overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--cor); border-radius: var(--raio); box-shadow: var(--sombra); padding: 16px 18px; display: grid; gap: 12px; }
+.envio-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+.envio-top b { display: block; font: 600 16px var(--display); }
+.mini.mini-6 { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+.card .ico-frente { width: 38px; height: 38px; font-size: 19px; }
 
 /* ---------- telas médias e celular ---------- */
 @media (min-width: 1380px) { .passos { grid-template-columns: repeat(6, minmax(0, 1fr)); } .passo:nth-child(3n)::after { display: block; } .passo:last-child::after { display: none; } }
