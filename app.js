@@ -1120,10 +1120,10 @@ const guardarEmail = (v) => { try { if (v) localStorage.setItem(CHAVE_EMAIL, v);
 const limparUrl = () => { try { history.replaceState(null, "", location.pathname + location.hash); } catch (e) {} };
 let assinaturas = []; let avisoLogin = "";
 const ladoLogin = () => `<div class="login-lado">
-    <div class="marca"><span class="logo" aria-hidden="true"><i class="ti ti-radar-2"></i></span><div><b>Soluções Industriais</b><span>Growth · Disparos</span></div></div>
+    <div class="marca"><span class="logo-redonda" role="img" aria-label="Soluções Industriais"></span><span class="sep" aria-hidden="true"></span><div><b>Growth</b><span>Disparos</span></div></div>
     <div style="display:grid;gap:8px"><h1>Painel de Fidelização</h1><p>Os disparos do Growth em um só lugar: a estratégia, os resultados de cada frente e a marcação das respostas, ao vivo.</p></div>
     <ul>
-      <li><i class="ti ti-refresh" aria-hidden="true"></i><span><b>Fidelização</b>Quem já cotou, chamado de volta</span></li>
+      <li><i class="ti ti-refresh" aria-hidden="true"></i><span><b>Fidelização</b>Por produto e por necessidade</span></li>
       <li><i class="ti ti-building" aria-hidden="true"></i><span><b>Institucional</b>Cartas por segmento</span></li>
       <li><i class="ti ti-brand-whatsapp" aria-hidden="true"></i><span><b>ColdZap</b>WhatsApp do cold mail</span></li>
     </ul></div>`;
