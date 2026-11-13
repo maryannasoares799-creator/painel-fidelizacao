@@ -2,7 +2,7 @@ const STATUS = { aguardando: "Sem resposta", interessado: "Interessado", sem_int
 const ENVIO = { "": "Não enviado", enviado: "Enviado", nao_existe: "Número não existe" };
 const BASE_AB = ["Inteira", "A", "B"];
 const state = {
-  pastas: [], estrategia: null, disparos: [], leads: [], bases: {}, inst: [], cz: [], czLeads: [], carregado: {},
+  pastas: [], estrategia: null, disparos: [], leads: [], bases: {}, inst: [], cz: [], czLeads: [], carregado: {}, czSel: new Set(),
   downloads: null, leadsOk: false, czOk: false, podeEditar: true, rota: { tipo: "inicio" },
   busca: "", canal: "", status: "", envio: "", leadsAberto: false, instMes: "",
 };
@@ -87,7 +87,7 @@ function hashDe(r) {
   return r.id;
 }
 function ir(rota) {
-  state.rota = rota; state.busca = ""; state.canal = ""; state.status = ""; state.envio = ""; state.leadsAberto = false;
+  state.rota = rota; state.busca = ""; state.canal = ""; state.status = ""; state.envio = ""; state.leadsAberto = false; state.czSel = new Set();
   try { const h = hashDe(rota); history.replaceState(null, "", h ? "#" + h : location.pathname); } catch (e) {}
   render(); window.scrollTo(0, 0);
 }
@@ -611,18 +611,62 @@ function telaCzDisparo(id) {
     </div>
     <section>${blocoCzLeads(d)}</section></div>`;
 }
-function blocoCzLeads(d) {
-  if (!state.czOk) return `<div class="empty" id="czLeads">A lista de leads fica visível só para quem opera os disparos.</div>`;
+/* Leads da lista com os filtros da tela (busca, envio e resposta), na ordem da planilha. */
+function czFiltrados(id) {
   const q = state.busca.trim().toLowerCase();
-  const todos = state.czLeads.filter((l) => l.disparo === d.id);
-  const ls = todos.filter((l) => (!state.envio || (state.envio === "pendente" ? !l.envio : l.envio === state.envio)) && (!state.status || (l.status || "aguardando") === state.status) &&
+  return state.czLeads.filter((l) => l.disparo === id && (!state.envio || (state.envio === "pendente" ? !l.envio : l.envio === state.envio)) && (!state.status || (l.status || "aguardando") === state.status) &&
       (!q || [l.empresa, l.nome, l.celular, l.email].some((v) => String(v || "").toLowerCase().includes(q))))
     .sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+}
+/* Seleção em massa: caixinha "Selecionar todos" no topo e uma por lead; as ações mudam o envio de todos os selecionados. */
+function barraSel(ls) {
+  const vis = ls.map((l) => l._id); const n = vis.filter((id) => state.czSel.has(id)).length;
+  return `<label class="check sel-todos"><input type="checkbox" id="czSelTodos"${vis.length && n === vis.length ? " checked" : ""}> Selecionar todos (${vis.length})</label>
+    ${n ? `<span class="note"><b>${n}</b> selecionado(s)</span>
+      <button type="button" class="btn" data-cz-sel="enviado"><i class="ti ti-send" aria-hidden="true"></i>Marcar como enviados</button>
+      <button type="button" class="btn secundario" data-cz-sel="nao_existe"><i class="ti ti-phone-off" aria-hidden="true"></i>Número não existe</button>
+      <button type="button" class="btn secundario" data-cz-sel=""><i class="ti ti-arrow-back-up" aria-hidden="true"></i>Não enviado</button>`
+      : `<span class="note">Marque os leads na primeira coluna, ou selecione todos, para mudar o envio de uma vez.</span>`}`;
+}
+function atualizarSel() {
+  const r = state.rota; if (r.tipo !== "czd") return;
+  const ls = czFiltrados(r.id); const vis = ls.map((l) => l._id); const n = vis.filter((id) => state.czSel.has(id)).length;
+  const bar = $("czSelBar"); if (bar) bar.innerHTML = barraSel(ls);
+  ["czSelTh", "czSelTodos"].forEach((k) => { const c = $(k); if (c) { c.checked = vis.length > 0 && n === vis.length; c.indeterminate = n > 0 && n < vis.length; } });
+  document.querySelectorAll("[data-czsel]").forEach((c) => { c.checked = state.czSel.has(c.dataset.czsel); });
+}
+async function aplicarCzSel(valor, btn) {
+  const r = state.rota; if (!db || r.tipo !== "czd") return;
+  const id = r.id; const aviso = (t, e) => { const l = $("czStatusLine"); if (l) { l.textContent = t; l.classList.toggle("err", !!e); } };
+  const alvo = czFiltrados(id).filter((l) => state.czSel.has(l._id) && (l.envio || "") !== valor);
+  if (!alvo.length) { state.czSel.clear(); renderCzLeads(); return aviso("Os leads selecionados já estavam assim."); }
+  document.querySelectorAll("[data-cz-sel]").forEach((b) => { b.disabled = true; });
+  const agora = new Date().toISOString();
+  try {
+    const lote = db.batch();
+    alvo.forEach((l) => lote.update(db.collection("coldzap_leads").doc(l._id), { envio: valor, enviado_em: valor === "enviado" ? agora : "", atualizado_em: agora }));
+    await lote.commit();
+    alvo.forEach((l) => Object.assign(l, { envio: valor, enviado_em: valor === "enviado" ? agora : "" }));
+    const d = state.cz.find((x) => x.id === id); const extra = valor === "enviado" && d && !d.enviado_em ? { enviado_em: hojeLocal() } : {};
+    try { await db.collection("coldzap").doc(id).update({ metricas: czCalc(state.czLeads.filter((x) => x.disparo === id)), ...extra }); if (d) Object.assign(d, extra); } catch (e) {}
+    state.czSel.clear(); render(); aviso(`${alvo.length} lead(s) marcados como "${ENVIO[valor]}".`);
+  } catch (e) {
+    document.querySelectorAll("[data-cz-sel]").forEach((b) => { b.disabled = false; });
+    if (semPermissao(e)) { state.podeEditar = false; return aviso("Você tem acesso só de leitura a este painel.", true); }
+    aviso("Não foi possível salvar. Tente de novo em alguns segundos.", true);
+  }
+}
+function blocoCzLeads(d) {
+  if (!state.czOk) return `<div class="empty" id="czLeads">A lista de leads fica visível só para quem opera os disparos.</div>`;
+  const todos = state.czLeads.filter((l) => l.disparo === d.id);
+  const ls = czFiltrados(d.id); const ed = state.podeEditar;
+  const nSel = ls.filter((l) => state.czSel.has(l._id)).length;
   const dis = state.podeEditar ? "" : " disabled";
   const linhas = ls.map((l) => {
     const st = l.status || "aguardando"; const en = l.envio || "";
     const link = l.numero ? `https://wa.me/${encodeURIComponent(l.numero)}?text=${encodeURIComponent(l.mensagem || "")}` : "";
     return `<tr data-cz="${esc(l._id)}">
+      ${ed ? `<td class="sel"><input type="checkbox" data-czsel="${esc(l._id)}" aria-label="Selecionar ${esc(l.empresa || l.nome || "lead")}"${state.czSel.has(l._id) ? " checked" : ""}></td>` : ""}
       <td class="num">${l.ordem || ""}</td>
       <td><div class="who"><b>${esc(l.empresa || l.nome || "Sem nome")}</b><small>${esc(l.empresa ? l.nome : "")}${l.empresa && l.nome ? " · " : ""}${esc(l.celular || "")}</small></div></td>
       <td><div class="pedido">${esc(l.produto_cotado || "")}${l.produto_cotado && l.o_que_pediu ? " · " : ""}${esc(l.o_que_pediu || "")}</div>${l.cotou_em ? `<span class="note">cotou em ${fmtData(l.cotou_em)}</span>` : ""}</td>
@@ -634,37 +678,15 @@ function blocoCzLeads(d) {
   }).join("");
   return `<div class="bloco" id="czLeads">
     <div class="section-head" style="margin:0"><h2>Leads da lista</h2><span class="note">${todos.length} leads · marque o envio, a resposta e o orçamento</span></div>
-    ${state.podeEditar && todos.some((l) => !l.envio) ? `<div class="acoes" id="czMassa"><button type="button" class="btn secundario" data-cz-todos="${esc(d.id)}"><i class="ti ti-checks" aria-hidden="true"></i>Marcar todos como enviados</button><span class="note">${todos.filter((l) => !l.envio).length} lead(s) ainda sem envio. Depois, ajuste quem teve "Número não existe".</span></div>` : ""}
+    ${ed && ls.length ? `<div class="selecao" id="czSelBar">${barraSel(ls)}</div>` : ""}
     <div class="filters">
       <input type="search" id="czbusca" value="${esc(state.busca)}" placeholder="Buscar por empresa, nome ou celular" aria-label="Buscar lead">
       <select id="fEnvio" aria-label="Filtrar envio"><option value="">Todos os envios</option><option value="pendente"${state.envio === "pendente" ? " selected" : ""}>Não enviado</option><option value="enviado"${state.envio === "enviado" ? " selected" : ""}>Enviado</option><option value="nao_existe"${state.envio === "nao_existe" ? " selected" : ""}>Número não existe</option></select>
       <select id="fCzStatus" aria-label="Filtrar resposta"><option value="">Todas as respostas</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}"${state.status === k ? " selected" : ""}>${v}</option>`).join("")}</select>
     </div>
     <div class="status-line" id="czStatusLine" role="status"></div>
-    ${ls.length ? `<div class="tbl-wrap"><table><thead><tr><th class="num">#</th><th>Lead</th><th>O que cotou</th><th>Mensagem</th><th>Envio</th><th>Resposta</th><th>Orçamento</th><th>Observação</th></tr></thead><tbody>${linhas}</tbody></table></div>` : `<div class="empty">Nenhum lead com esses filtros.</div>`}
+    ${ls.length ? `<div class="tbl-wrap"><table><thead><tr>${ed ? `<th class="sel"><input type="checkbox" id="czSelTh" aria-label="Selecionar todos os leads"${nSel && nSel === ls.length ? " checked" : ""}></th>` : ""}<th class="num">#</th><th>Lead</th><th>O que cotou</th><th>Mensagem</th><th>Envio</th><th>Resposta</th><th>Orçamento</th><th>Observação</th></tr></thead><tbody>${linhas}</tbody></table></div>` : `<div class="empty">Nenhum lead com esses filtros.</div>`}
   </div>`;
-}
-/* Marca de uma vez como enviados os leads da lista que ainda estão sem envio (não mexe em quem já foi marcado). */
-async function marcarTodosCz(id, btn) {
-  if (!db) return;
-  const aviso = (t, e) => { const l = $("czStatusLine"); if (l) { l.textContent = t; l.classList.toggle("err", !!e); } };
-  const pend = state.czLeads.filter((l) => l.disparo === id && !l.envio);
-  if (!pend.length) return renderCzLeads();
-  btn.disabled = true;
-  const agora = new Date().toISOString();
-  try {
-    const lote = db.batch();
-    pend.forEach((l) => lote.update(db.collection("coldzap_leads").doc(l._id), { envio: "enviado", enviado_em: agora, atualizado_em: agora }));
-    await lote.commit();
-    pend.forEach((l) => Object.assign(l, { envio: "enviado", enviado_em: agora }));
-    const d = state.cz.find((x) => x.id === id); const extra = d && !d.enviado_em ? { enviado_em: hojeLocal() } : {};
-    try { await db.collection("coldzap").doc(id).update({ metricas: czCalc(state.czLeads.filter((x) => x.disparo === id)), ...extra }); if (d) Object.assign(d, extra); } catch (e) {}
-    render(); aviso(`${pend.length} lead(s) marcados como enviados.`);
-  } catch (e) {
-    btn.disabled = false;
-    if (semPermissao(e)) { state.podeEditar = false; return aviso("Você tem acesso só de leitura a este painel.", true); }
-    aviso("Não foi possível salvar. Tente de novo em alguns segundos.", true);
-  }
 }
 async function salvarCz(id, campo, valor, el) {
   if (!db) return;
@@ -1129,11 +1151,7 @@ rotuloTema();
 document.addEventListener("click", (ev) => {
   if (ev.target.closest("[data-tema]")) return trocarTema();
   if (ev.target.closest("[data-atualizar]")) return irParaVersao(versaoNova || VERSAO);
-  const ct = ev.target.closest("[data-cz-todos]");
-  if (ct) { const n = state.czLeads.filter((l) => l.disparo === ct.dataset.czTodos && !l.envio).length;
-    $("czMassa").innerHTML = `<button type="button" class="btn" data-cz-todos-ok="${esc(ct.dataset.czTodos)}"><i class="ti ti-checks" aria-hidden="true"></i>Confirmar: marcar ${n} lead(s) como enviados</button> <button type="button" class="btn secundario" data-cz-todos-nao="1">Cancelar</button>`; return; }
-  if (ev.target.closest("[data-cz-todos-nao]")) return renderCzLeads();
-  const cto = ev.target.closest("[data-cz-todos-ok]"); if (cto) return marcarTodosCz(cto.dataset.czTodosOk, cto);
+  const cs = ev.target.closest("[data-cz-sel]"); if (cs) return aplicarCzSel(cs.dataset.czSel, cs);
   const ee = ev.target.closest("[data-enviar-email]"); if (ee) return salvarEnvioEmail(ee.dataset.enviarEmail, ($("dataEnvio")?.value || "").trim(), ee);
   const de = ev.target.closest("[data-desmarcar-envio]");
   if (de) { $("desmarcarBox").innerHTML = `<button type="button" class="btn perigo" data-desmarcar-ok="${esc(de.dataset.desmarcarEnvio)}">Confirmar: desmarcar envio</button> <button type="button" class="btn secundario" data-desmarcar-nao="1">Manter</button>`; return; }
@@ -1166,6 +1184,8 @@ document.addEventListener("change", (ev) => {
   if (el.id === "fStatus") { state.status = el.value; return renderLeadsSomente(); }
   if (el.id === "fEnvio") { state.envio = el.value; return renderCzLeads(); }
   if (el.id === "fCzStatus") { state.status = el.value; return renderCzLeads(); }
+  if (el.id === "czSelTodos" || el.id === "czSelTh") { czFiltrados(state.rota.id).forEach((l) => (el.checked ? state.czSel.add(l._id) : state.czSel.delete(l._id))); return atualizarSel(); }
+  if (el.dataset.czsel) { if (el.checked) state.czSel.add(el.dataset.czsel); else state.czSel.delete(el.dataset.czsel); return atualizarSel(); }
   if (el.id === "instMes") { state.instMes = el.value; return render(); }
   if (el.dataset.bm) return salvarBm(el);
   const trz = el.closest("tr[data-cz]");
@@ -1253,7 +1273,7 @@ function telaConfirmarEmail(msg) {
 function limparDados() {
   assinaturas.forEach((parar) => { try { parar(); } catch (e) {} }); assinaturas = [];
   iniciado = false;
-  Object.assign(state, { pastas: [], estrategia: null, disparos: [], leads: [], bases: {}, inst: [], cz: [], czLeads: [], carregado: {}, leadsOk: false, czOk: false, podeEditar: false });
+  Object.assign(state, { pastas: [], estrategia: null, disparos: [], leads: [], bases: {}, inst: [], cz: [], czLeads: [], carregado: {}, czSel: new Set(), leadsOk: false, czOk: false, podeEditar: false });
 }
 (function () {
   const cfg = window.FIREBASE_CONFIG || {};
