@@ -3,7 +3,7 @@ const ENVIO = { "": "Não enviado", enviado: "Enviado", nao_existe: "Número nã
 const BASE_AB = ["Inteira", "A", "B"];
 const state = {
   pastas: [], estrategia: null, disparos: [], leads: [], bases: {}, inst: [], cm: [], cz: [], czLeads: [], carregado: {}, czSel: new Set(),
-  downloads: null, leadsOk: false, czOk: false, podeEditar: true, rota: { tipo: "inicio" },
+  downloads: null, leadsOk: false, czOk: false, podeEditar: true, rota: { tipo: "inicio" }, vista: "caixas",
   busca: "", canal: "", status: "", envio: "", leadsAberto: false, instMes: "",
 };
 let db = null; let iniciado = false;
@@ -23,7 +23,16 @@ const kpiGrid = (itens) => `<div class="kpis">${itens.map(([l, v, s, h, ic, m]) 
   <div class="topo">${ic ? `<span class="ico" aria-hidden="true"><i class="ti ${ic}"></i></span>` : ""}<span class="l">${l}</span></div>
   <span class="v">${v}</span>${m != null ? `<div class="medidor" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, m))}%"></span></div>` : ""}<span class="s">${esc(s)}</span></div>`).join("")}</div>`;
 const vazio = (ic, titulo, texto) => `<div class="empty"><i class="ti ${ic}" aria-hidden="true"></i><b>${titulo}</b>${texto ? `<span>${texto}</span>` : ""}</div>`;
-const secao = (id, ic, titulo, nota, corpo) => `<section aria-labelledby="${id}"><div class="section-head"><h2 id="${id}">${ic ? `<i class="ti ${ic}" aria-hidden="true"></i>` : ""}${titulo}</h2>${nota ? `<span class="note">${nota}</span>` : ""}</div>${corpo}</section>`;
+const secao = (id, ic, titulo, nota, corpo, acao = "") => `<section aria-labelledby="${id}"><div class="section-head"><h2 id="${id}">${ic ? `<i class="ti ${ic}" aria-hidden="true"></i>` : ""}${titulo}</h2>${acao ? `<div class="cab-dir">${nota ? `<span class="note">${nota}</span>` : ""}${acao}</div>` : nota ? `<span class="note">${nota}</span>` : ""}</div>${corpo}</section>`;
+/* Modo de ver os fornecedores (Cold mail e ColdZap): "caixas" (cartões) ou "lista" (fileiras). Fica guardado neste navegador. */
+const CHAVE_VISTA = "painel-vista";
+const lerVista = () => { try { return localStorage.getItem(CHAVE_VISTA) === "lista" ? "lista" : "caixas"; } catch (e) { return "caixas"; } };
+const seletorVista = () => `<div class="vista" role="group" aria-label="Modo de ver">${[["caixas", "ti-layout-grid", "Caixas"], ["lista", "ti-list", "Lista"]].map(([k, ic, nome]) =>
+  `<button type="button" data-vista="${k}" aria-pressed="${state.vista === k}"><i class="ti ${ic}" aria-hidden="true"></i><span>${nome}</span></button>`).join("")}</div>`;
+/* Fileira compacta: nome e detalhe, situação, até 3 números e a seta. */
+const fileira = (cls, ir, nome, sub, sit, nums) => `<button type="button" class="linha ${cls}" data-ir="${ir}">
+  <span class="l-nome"><b>${nome}</b><small>${sub}</small></span><span class="l-sit">${sit}</span>
+  ${nums.map(([v, l]) => `<span class="l-num"><b>${v}</b><small>${l}</small></span>`).join("")}<i class="ti ti-chevron-right" aria-hidden="true"></i></button>`;
 const painel = (id, ic, titulo, nota, corpo, extra = "") => `<section class="painel${extra}" aria-labelledby="${id}"><div class="section-head"><h2 id="${id}">${ic ? `<i class="ti ${ic}" aria-hidden="true"></i>` : ""}${titulo}</h2>${nota ? `<span class="note">${nota}</span>` : ""}</div>${corpo}</section>`;
 function cab(titulo, sub) {
   $("titulo").textContent = titulo;
@@ -591,13 +600,17 @@ function telaColdzap() {
       ${painel("h-zp", "ti-progress-check", "Andamento dos envios", `${tot.enviados + tot.nao_existe} de ${tot.total} tratados`, `<div class="cz" style="display:grid;gap:14px">${ds.map((d) => { const m = czMetricas(d);
         return `<div style="display:grid;gap:6px"><div style="display:flex;justify-content:space-between;gap:8px;font-size:13.5px"><button type="button" class="linkbtn" style="text-decoration:none;font-weight:600;color:var(--ink)" data-ir="czd:${esc(d.id)}">${esc(d.empresa)}</button><span class="note">${m.enviados + m.nao_existe}/${m.total}</span></div>${czProgresso(m)}</div>`; }).join("") || `<p class="note">Nenhuma lista ainda.</p>`}</div>`)}
     </div>
-    ${secao("h-zl", "ti-list-details", "Listas por fornecedor", "", `<div class="grid-cards">${ds.map((d) => { const m = czMetricas(d); return `<button type="button" class="card cz" data-ir="czd:${esc(d.id)}">
+    ${secao("h-zl", "ti-list-details", "Listas por fornecedor", `${ds.length} lista(s)`, state.vista === "lista"
+      ? `<div class="linhas">${ds.map((d) => { const m = czMetricas(d); return fileira("cz", `czd:${esc(d.id)}`, esc(d.empresa), `${esc(d.chave || "")}${d.produto ? " · " + esc(d.produto) : ""}`,
+          `<span class="chip ${m.pendentes ? "neutro" : "ok"}">${m.pendentes ? `${m.pendentes} sem envio` : "Todos tratados"}</span><span class="chip neutro sem-ponto">Preparada em ${fmtData(d.data)}</span>`,
+          [[`${m.enviados}/${m.total}`, "enviados"], [`${br(pct(m.respostas, m.enviados))}%`, "resposta"], [m.orcamentos, "orçamentos"]]); }).join("")}</div>`
+      : `<div class="grid-cards">${ds.map((d) => { const m = czMetricas(d); return `<button type="button" class="card cz" data-ir="czd:${esc(d.id)}">
         <div class="top"><div><div class="nome">${esc(d.empresa)}</div><div class="sub">${esc(d.chave || "")}${d.produto ? " · " + esc(d.produto) : ""}</div></div><span class="zap-ico" aria-hidden="true"><i class="ti ti-brand-whatsapp"></i></span></div>
         <div class="sub">Preparada em ${fmtData(d.data)}${d.remetente ? " · envia " + esc(d.remetente) : ""}</div>
         ${czProgresso(m)}
         <div class="stats"><div class="stat"><b>${m.enviados}/${m.total}</b><span>enviados</span></div><div class="stat"><b>${br(pct(m.respostas, m.enviados))}%</b><span>resposta</span></div><div class="stat"><b>${m.orcamentos}</b><span>orçamentos</span></div></div>
         <span class="go">Abrir lista <i class="ti ti-arrow-right" aria-hidden="true"></i></span></button>`; }).join("")}
-        <div class="card nova"><div class="nome">Próximo cold mail</div><div class="sub">A lista de WhatsApp entra aqui quando a base de um cold mail é separada.</div></div></div>`)}
+        <div class="card nova"><div class="nome">Próximo cold mail</div><div class="sub">A lista de WhatsApp entra aqui quando a base de um cold mail é separada.</div></div></div>`, ds.length ? seletorVista() : "")}
   </div>`;
 }
 function telaCzDisparo(id) {
@@ -785,6 +798,11 @@ function telaColdmail() {
       <div style="display:flex;flex-wrap:wrap;gap:6px">${sit.chip}${f.envios.length > 1 ? `<span class="chip neutro sem-ponto">${f.envios.length} envios (${f.envios.map((d) => d.base_ab === "A" || d.base_ab === "B" ? d.base_ab : "inteira").join(" e ")})</span>` : ""}${f.cz ? `<span class="chip sem-ponto" style="background:var(--f-cz-soft);color:var(--f-cz)"><i class="ti ti-brand-whatsapp" aria-hidden="true"></i>WhatsApp no ColdZap</span>` : ""}</div>
       <div class="stats"><div class="stat"><b>${f.s.limpa || f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0)}</b><span>base limpa</span></div><div class="stat"><b>${f.s.entregues ? br(pct(f.s.abertos, f.s.entregues)) + "%" : "—"}</b><span>lido</span></div><div class="stat"><b>${f.envios.some((d) => num(d.respostas) != null) ? f.resp : "—"}/${f.envios.some((d) => num(d.orcamentos) != null) ? f.orc : "—"}</b><span>respostas/orç.</span></div></div>
       <span class="go">Abrir fornecedor <i class="ti ti-arrow-right" aria-hidden="true"></i></span></button>`; };
+  const linhaForn = (f) => { const sit = f.programados.length ? cmSituacao(f.programados[0]) : f.semMetricas.length ? cmSituacao(f.semMetricas[0]) : cmSituacao(f.envios[f.envios.length - 1]);
+    return fileira("cm", `cmf:${esc(f.k)}`, esc(f.empresa || "Sem nome"), `${esc(f.chave || "sem ID")}${f.produto ? " · " + esc(f.produto) : ""}`,
+      `${sit.chip}${f.envios.length > 1 ? `<span class="chip neutro sem-ponto">${f.envios.length} envios</span>` : ""}${f.cz ? `<span class="chip sem-ponto" style="background:var(--f-cz-soft);color:var(--f-cz)" title="WhatsApp no ColdZap"><i class="ti ti-brand-whatsapp" aria-hidden="true"></i>ColdZap</span>` : ""}`,
+      [[f.s.limpa || f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0), "base limpa"], [f.s.entregues ? br(pct(f.s.abertos, f.s.entregues)) + "%" : "—", "lido"],
+       [`${f.envios.some((d) => num(d.respostas) != null) ? f.resp : "—"}/${f.envios.some((d) => num(d.orcamentos) != null) ? f.orc : "—"}`, "resp./orç."]]); };
   return `<div class="pilha">
     <div class="acoes">${state.podeEditar ? `<button type="button" class="btn" data-ir="cm-novo"><i class="ti ti-plus" aria-hidden="true"></i>Novo cold mail</button>` : ""}<span class="note">Os números do BillionMail podem mudar: abra o fornecedor e use "Editar" para atualizar.</span></div>
     ${secao("h-cmt", "ti-chart-bar", "Resultado", "Funil dos envios com números; respostas e orçamentos de toda a campanha", cmKpis(s, forn.length))}
@@ -794,8 +812,8 @@ function telaColdmail() {
         return `<li class="${k === "sem_metricas" ? "alerta" : ""}"><span class="pi" aria-hidden="true"><i class="ti ${k === "programado" ? "ti-calendar-event" : k === "sem_data" ? "ti-calendar-off" : "ti-chart-bar-off"}"></i></span><div><button type="button" data-ir="cmf:${esc(normChave(d.chave) || "sem-id:" + String(d.empresa || "").trim().toLowerCase())}">${esc(String(d.empresa || "").trim())} · ${baseNome(d)}</button><span>${k === "programado" ? `Programado para ${fmtData(d.data_disparo)}` : k === "sem_data" ? "Sem data de disparo" : `Enviado em ${fmtData(d.data_disparo)}: lançar os números do BillionMail`}</span></div></li>`; }).join("")}</ul>`
         : `<p class="note" style="display:flex;gap:8px;align-items:center"><i class="ti ti-circle-check" style="color:var(--ok);font-size:18px" aria-hidden="true"></i>Nenhum envio programado nem sem números.</p>`)}
     </div>
-    ${secao("h-cml", "ti-building-store", "Fornecedores", `${forn.length} fornecedor(es) · mais recentes primeiro`, forn.length ? `<div class="grid-cards">${forn.map(cardForn).join("")}</div>`
-      : vazio("ti-mail-forward", "Nenhum cold mail registrado ainda.", state.podeEditar ? "Use “Novo cold mail” para lançar o primeiro." : ""))}
+    ${secao("h-cml", "ti-building-store", "Fornecedores", `${forn.length} fornecedor(es) · mais recentes primeiro`, forn.length ? (state.vista === "lista" ? `<div class="linhas">${forn.map(linhaForn).join("")}</div>` : `<div class="grid-cards">${forn.map(cardForn).join("")}</div>`)
+      : vazio("ti-mail-forward", "Nenhum cold mail registrado ainda.", state.podeEditar ? "Use “Novo cold mail” para lançar o primeiro." : ""), forn.length ? seletorVista() : "")}
     ${state.cm.length ? secao("h-cme", "ti-list-details", "Todos os envios", "Uma linha por envio, como na planilha", `<div class="tbl-wrap"><table><thead><tr><th>Disparo em</th><th>Fornecedor</th><th>ID</th><th>Base</th><th>Situação</th><th class="num">Base limpa</th><th class="num">Entregues</th><th class="num">% lido</th><th class="num">Cliques</th><th class="num">Respostas</th><th class="num">Orçamentos</th></tr></thead>
       <tbody>${[...state.cm].sort((a, b) => (b.data_disparo || "").localeCompare(a.data_disparo || "")).map((d) => `<tr><td><button type="button" class="linkbtn" data-ir="cmf:${esc(normChave(d.chave) || "sem-id:" + String(d.empresa || "").trim().toLowerCase())}">${d.data_disparo ? fmtData(d.data_disparo) : "Sem data"}</button></td><td>${esc(String(d.empresa || "").trim())}</td><td class="note">${esc(String(d.chave || "").replace(/\.0$/, ""))}</td><td><span class="tag ab">${esc(d.base_ab || "Inteira")}</span></td><td>${cmSituacao(d).chip}</td>${linhaCm(d)}</tr>`).join("")}</tbody></table></div>`) : ""}
   </div>`;
@@ -1362,11 +1380,14 @@ function trocarTema() {
 }
 try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rotuloTema); } catch (e) {}
 rotuloTema();
+state.vista = lerVista();
 
 /* ---------- eventos ---------- */
 document.addEventListener("click", (ev) => {
   if (ev.target.closest("[data-tema]")) return trocarTema();
   if (ev.target.closest("[data-atualizar]")) return irParaVersao(versaoNova || VERSAO);
+  const vs = ev.target.closest("[data-vista]");
+  if (vs) { state.vista = vs.dataset.vista === "lista" ? "lista" : "caixas"; try { localStorage.setItem(CHAVE_VISTA, state.vista); } catch (e) {} return render(); }
   const cs = ev.target.closest("[data-cz-sel]"); if (cs) return aplicarCzSel(cs.dataset.czSel, cs);
   const ee = ev.target.closest("[data-enviar-email]"); if (ee) return salvarEnvioEmail(ee.dataset.enviarEmail, ($("dataEnvio")?.value || "").trim(), ee);
   const de = ev.target.closest("[data-desmarcar-envio]");

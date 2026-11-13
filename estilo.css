@@ -456,6 +456,33 @@ input[type="checkbox"] { accent-color: var(--marinho-ativo); width: 16px; height
 .mini.mini-6 { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
 .card .ico-frente { width: 38px; height: 38px; font-size: 19px; }
 
+/* ---------- modo de ver: caixas ou lista ---------- */
+.cab-dir { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.vista { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--surface); }
+.vista button { display: inline-flex; align-items: center; gap: 6px; font: 500 13px var(--body); color: var(--muted); background: none; border: 0; padding: 6px 12px; cursor: pointer; }
+.vista button + button { border-left: 1px solid var(--line); }
+.vista button i { font-size: 16px; }
+.vista button[aria-pressed="true"] { background: var(--primaria-soft); color: var(--primaria-ink); }
+.vista button:hover { color: var(--ink); }
+.linhas { display: grid; gap: 8px; }
+.linha { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.8fr) 84px 76px 92px 18px; align-items: center; gap: 14px; width: 100%; text-align: left; font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--cor, var(--primaria)); border-radius: 12px; padding: 10px 14px; cursor: pointer; box-shadow: var(--sombra); }
+.linha:hover { border-color: color-mix(in srgb, var(--cor, var(--primaria)) 55%, var(--line)); border-left-color: var(--cor, var(--primaria)); box-shadow: var(--sombra-hover); }
+.l-nome { display: grid; gap: 1px; min-width: 0; }
+.l-nome b { font-weight: 600; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.l-nome small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.l-sit { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.l-num { display: grid; text-align: right; }
+.l-num b { font: 700 15px var(--display); letter-spacing: -0.01em; }
+.l-num small { font-size: 11.5px; color: var(--muted); }
+.linha > i { color: var(--muted); font-size: 16px; }
+@media (max-width: 900px) {
+  .linha { grid-template-columns: minmax(0, 1fr) auto 18px; gap: 6px 12px; }
+  .l-sit { grid-column: 1 / -1; grid-row: 2; }
+  .l-num { display: none; }
+  .l-num:nth-last-of-type(1) { display: grid; grid-row: 1; grid-column: 2; }
+  .linha > i { grid-row: 1; grid-column: 3; }
+}
+
 /* ---------- telas médias e celular ---------- */
 @media (min-width: 1380px) { .passos { grid-template-columns: repeat(6, minmax(0, 1fr)); } .passo:nth-child(3n)::after { display: block; } .passo:last-child::after { display: none; } }
 @media (max-width: 1100px) {
