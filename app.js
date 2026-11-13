@@ -1027,6 +1027,33 @@ async function baixarCampanha(id, btn) {
   } finally { btn.disabled = false; }
 }
 
+/* ---------- versão nova ----------
+   O GitHub Pages manda o navegador guardar a página por até 10 minutos. O painel compara a versão desta página
+   (meta "versao", trocada pelo scripts/nova_versao.py a cada publicação) com o versao.txt publicado, buscado sem cache.
+   Ao abrir: se estiver velha, recarrega na hora com "?v=" (endereço novo, sem cache). Com o painel aberto: mostra um aviso. */
+const VERSAO = document.querySelector('meta[name="versao"]')?.content || "";
+let versaoNova = "";
+const irParaVersao = (v) => location.replace(location.pathname + "?v=" + encodeURIComponent(v) + location.hash);
+async function conferirVersao(inicio) {
+  if (!VERSAO || VERSAO === "0") return;
+  let nova = "";
+  try { const r = await fetch(`versao.txt?nc=${Date.now()}`, { cache: "no-store" }); if (r.ok) nova = (await r.text()).trim(); } catch (e) { return; }
+  if (!nova || nova === VERSAO) return;
+  versaoNova = nova;
+  const chave = "painel-recarregou-" + nova; let ja = false;
+  try { ja = sessionStorage.getItem(chave) === "1"; } catch (e) {}
+  const linkDeLogin = /[?&](oobCode|mode|apiKey)=/.test(location.search);
+  if (inicio && !ja && !linkDeLogin) { try { sessionStorage.setItem(chave, "1"); } catch (e) {} return irParaVersao(nova); }
+  if (!$("avisoVersao")) {
+    const d = document.createElement("div"); d.id = "avisoVersao"; d.className = "aviso-versao"; d.setAttribute("role", "status");
+    d.innerHTML = `<i class="ti ti-sparkles" aria-hidden="true"></i><span>Saiu uma versão nova do painel.</span><button type="button" class="btn" data-atualizar>Atualizar</button>`;
+    document.body.appendChild(d);
+  }
+}
+conferirVersao(true);
+setInterval(() => conferirVersao(false), 5 * 60 * 1000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) conferirVersao(false); });
+
 /* ---------- modo claro e escuro (a escolha fica guardada neste navegador) ---------- */
 const CHAVE_TEMA = "painel-tema";
 const temaAtual = () => document.documentElement.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
@@ -1049,6 +1076,7 @@ rotuloTema();
 /* ---------- eventos ---------- */
 document.addEventListener("click", (ev) => {
   if (ev.target.closest("[data-tema]")) return trocarTema();
+  if (ev.target.closest("[data-atualizar]")) return irParaVersao(versaoNova || VERSAO);
   const dl = ev.target.closest("[data-baixar]"); if (dl) return baixar(dl.dataset.baixar, dl);
   const cp = ev.target.closest("[data-campanha]"); if (cp) return baixarCampanha(cp.dataset.campanha, cp);
   const rl = ev.target.closest("[data-relatorio]"); if (rl) return relatorioMensal(rl);

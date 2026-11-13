@@ -71,3 +71,4 @@ No GitHub gratuito, o GitHub Pages só publica repositório público. Por isso o
 - **Dados novos:** listas de ColdZap, disparos de fidelização e "voltou a cotar" entram pelo script `admin_firebase.py` (comando `gravar`).
 - **Cópia de segurança:** `python scripts/admin_firebase.py --chave ... exportar PASTA`.
 - **Operadores:** para dar ou tirar acesso aos leads, use `operador adicionar` ou `operador remover`.
+- **Publicar uma mudança no painel:** rode `python scripts/nova_versao.py` antes do commit e depois faça o `git push`. O script marca uma versão nova, e quem estiver com o painel aberto ou com a página guardada no navegador passa a ver a versão nova sozinho: ao abrir, o painel recarrega; se já estiver aberto, aparece o aviso "Atualizar".
