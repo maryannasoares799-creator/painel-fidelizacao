@@ -758,11 +758,11 @@ const normChave = (c) => String(c ?? "").replace(/\.0$/, "").trim().toLowerCase(
 const temMetrica = (d) => num(d.bm?.delivered_pct) != null || num(d.bm?.opened_pct) != null || num(d.bm?.enviados) != null;
 const cmEnviado = (d) => !!d.data_disparo && d.data_disparo <= hojeLocal();
 function cmSituacao(d) {
-  if (!d.data_disparo) return { k: "sem_data", chip: `<span class="chip neutro">Sem data de disparo</span>` };
-  if (d.data_disparo === hojeLocal() && !temMetrica(d)) return { k: "hoje", chip: `<span class="chip info">Disparo hoje</span>` };
-  if (d.data_disparo > hojeLocal()) return { k: "programado", chip: `<span class="chip info sem-ponto"><i class="ti ti-calendar-event" aria-hidden="true"></i>Programado para ${fmtData(d.data_disparo)}</span>` };
-  if (!temMetrica(d)) return { k: "sem_metricas", chip: `<span class="chip neutro">Enviado em ${fmtData(d.data_disparo)} · sem métricas</span>` };
-  return { k: "ok", chip: `<span class="chip ok">Enviado em ${fmtData(d.data_disparo)}</span>` };
+  if (!d.data_disparo) return { k: "sem_data", chip: `<span class="chip neutro">E-mail sem data de disparo</span>` };
+  if (d.data_disparo === hojeLocal() && !temMetrica(d)) return { k: "hoje", chip: `<span class="chip info">E-mail: disparo hoje</span>` };
+  if (d.data_disparo > hojeLocal()) return { k: "programado", chip: `<span class="chip info sem-ponto"><i class="ti ti-calendar-event" aria-hidden="true"></i>E-mail programado para ${fmtData(d.data_disparo)}</span>` };
+  if (!temMetrica(d)) return { k: "sem_metricas", chip: `<span class="chip neutro">E-mail enviado em ${fmtData(d.data_disparo)} · sem métricas</span>` };
+  return { k: "ok", chip: `<span class="chip ok">E-mail enviado em ${fmtData(d.data_disparo)}</span>` };
 }
 const baseNome = (d) => (d.base_ab === "A" || d.base_ab === "B" ? `Base ${d.base_ab}` : "Base inteira");
 /* Fornecedores: envios agrupados pelo ID do cliente (ou pelo nome, se faltar o ID). */
@@ -857,11 +857,11 @@ function telaCmFornecedor(k) {
     ${secao("h-cmr", "ti-chart-bar", "Resultado do e-mail", "Envios com números do BillionMail", cmKpis(tot, null))}
     ${secao("h-cmv", "ti-mail-forward", "Envios", `${f.envios.length} envio(s)`, `<div class="envios">${f.envios.map(envio).join("")}</div>
       ${state.podeEditar ? `<button type="button" class="btn secundario" style="justify-self:start;margin-top:14px" data-ir="cm-novo:${esc(f.k)}"><i class="ti ti-plus" aria-hidden="true"></i>Novo envio deste fornecedor</button>` : ""}`)}
-    ${f.cz ? `<section class="painel" aria-labelledby="h-cmb"><div class="section-head"><h2 id="h-cmb"><i class="ti ti-arrows-split" aria-hidden="true"></i>Base dividida em dois canais</h2><span class="note">${(f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0)) + czm.total} leads no total</span></div>
-      <div class="canais-base"><div class="cm"><i class="ti ti-mail-forward" aria-hidden="true"></i><div><b>${f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0)}</b><span>pelo e-mail (Cold mail)</span></div></div>
-      <div class="cz"><i class="ti ti-brand-whatsapp" aria-hidden="true"></i><div><b>${czm.total}</b><span>pelo WhatsApp (ColdZap)</span></div></div></div></section>` : ""}
-    ${f.cz ? painel("h-cmz", "ti-brand-whatsapp", "WhatsApp (ColdZap)", `${czm.total} leads separados · ${czSituacao(f.cz, czm).chip}`, `<div class="mini"><div><b>${czm.enviados}/${czm.total}</b><span>Enviados</span></div><div><b>${czm.respostas}</b><span>Respostas marcadas</span></div><div><b>${czm.orcamentos}</b><span>Orçamentos marcados</span></div><div><b>${czm.nao_existe}</b><span>Número não existe</span></div></div>
-      <p class="note">Esses números são do WhatsApp, marcados lead a lead no ColdZap. Não entram no resultado do e-mail acima.</p><button type="button" class="abrir cz" data-ir="czd:${esc(f.cz.id)}">Abrir a lista no ColdZap <i class="ti ti-arrow-right" aria-hidden="true"></i></button>`, " cz") : ""}
+    ${f.cz ? (() => { const limpa = f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0); const datasEmail = [...new Set(f.envios.map((d) => d.data_disparo).filter(Boolean))].sort().map(fmtData).join(" e ");
+      return `<section class="painel" aria-labelledby="h-cmb"><div class="section-head"><h2 id="h-cmb"><i class="ti ti-arrows-split" aria-hidden="true"></i>Base dividida em dois canais</h2><span class="note">${limpa + czm.total} leads no total · cada canal tem a sua data</span></div>
+      <div class="canais-base"><div class="cm"><i class="ti ti-mail-forward" aria-hidden="true"></i><div><b>${limpa}</b><span>pelo e-mail (Cold mail)</span><small>Disparo do e-mail: ${datasEmail || "sem data"}</small></div></div>
+      <div class="cz"><i class="ti ti-brand-whatsapp" aria-hidden="true"></i><div><b>${czm.total}</b><span>pelo WhatsApp (ColdZap)</span><small>Disparo do WhatsApp: ${fmtData(f.cz.data) || "sem data"}</small></div></div></div>
+      <p class="note">Os números do WhatsApp ficam no ColdZap e não entram no resultado do e-mail. <button type="button" class="linkbtn" data-ir="czd:${esc(f.cz.id)}">Ver a lista no ColdZap</button></p></section>`; })() : ""}
   </div>`;
 }
 
