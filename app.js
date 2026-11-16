@@ -587,6 +587,15 @@ const czEtapas = (m) => [
   { nome: "Responderam", icone: "ti-message-circle", v: m.respostas }, { nome: "Interessados", icone: "ti-thumb-up", v: m.interessados },
   { nome: "Orçamentos", icone: "ti-file-invoice", v: m.orcamentos },
 ];
+/* Situação da lista: a data ("data") é o dia do disparo. Atrasado = a data já passou e ainda há lead sem envio marcado. */
+function czSituacao(d, m = czMetricas(d)) {
+  const hj = hojeLocal(); const dt = String(d.data || "").slice(0, 10);
+  if (m.total && !m.pendentes) return { k: "disparado", chip: `<span class="chip ok">Disparado em ${fmtData(dt)}</span>` };
+  if (!dt) return { k: "sem_data", chip: `<span class="chip neutro">Sem data · ${m.pendentes} sem envio</span>` };
+  if (dt > hj) return { k: "programado", chip: `<span class="chip info sem-ponto"><i class="ti ti-calendar-event" aria-hidden="true"></i>Programado para ${fmtData(dt)}</span>` };
+  if (dt === hj) return { k: "hoje", chip: `<span class="chip info">Disparo hoje · ${m.pendentes} sem envio</span>` };
+  return { k: "atrasado", chip: `<span class="chip bad">Atrasado · ${m.pendentes} sem envio</span>` };
+}
 const czProgresso = (m) => progresso([["Enviados", m.enviados, "seg-ok"], ["Número não existe", m.nao_existe, "seg-bad"], ["Sem envio", m.pendentes, "seg-neutro"]], m.total);
 function telaColdzap() {
   cab("ColdZap", "A parte da base de um cold mail por fornecedor que vai pelo WhatsApp, enviada à mão. Cada lista mostra lead a lead quem recebeu, quem respondeu e quais respostas viraram orçamento.");
@@ -602,11 +611,11 @@ function telaColdzap() {
     </div>
     ${secao("h-zl", "ti-list-details", "Listas por fornecedor", `${ds.length} lista(s)`, state.vista === "lista"
       ? `<div class="linhas">${ds.map((d) => { const m = czMetricas(d); return fileira("cz", `czd:${esc(d.id)}`, esc(d.empresa), `${esc(d.chave || "")}${d.produto ? " · " + esc(d.produto) : ""}`,
-          `<span class="chip ${m.pendentes ? "neutro" : "ok"}">${m.pendentes ? `${m.pendentes} sem envio` : "Todos tratados"}</span><span class="chip neutro sem-ponto">Preparada em ${fmtData(d.data)}</span>`,
+          czSituacao(d, m).chip,
           [[`${m.enviados}/${m.total}`, "enviados"], [`${br(pct(m.respostas, m.enviados))}%`, "resposta"], [m.orcamentos, "orçamentos"]]); }).join("")}</div>`
       : `<div class="grid-cards">${ds.map((d) => { const m = czMetricas(d); return `<button type="button" class="card cz" data-ir="czd:${esc(d.id)}">
         <div class="top"><div><div class="nome">${esc(d.empresa)}</div><div class="sub">${esc(d.chave || "")}${d.produto ? " · " + esc(d.produto) : ""}</div></div><span class="zap-ico" aria-hidden="true"><i class="ti ti-brand-whatsapp"></i></span></div>
-        <div class="sub">Preparada em ${fmtData(d.data)}${d.remetente ? " · envia " + esc(d.remetente) : ""}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">${czSituacao(d, m).chip}</div>${d.remetente ? `<div class="sub">Envia ${esc(d.remetente)}</div>` : ""}
         ${czProgresso(m)}
         <div class="stats"><div class="stat"><b>${m.enviados}/${m.total}</b><span>enviados</span></div><div class="stat"><b>${br(pct(m.respostas, m.enviados))}%</b><span>resposta</span></div><div class="stat"><b>${m.orcamentos}</b><span>orçamentos</span></div></div>
         <span class="go">Abrir lista <i class="ti ti-arrow-right" aria-hidden="true"></i></span></button>`; }).join("")}
@@ -622,7 +631,8 @@ function telaCzDisparo(id) {
     <dl class="ficha">
       <div><dt>Fornecedor</dt><dd>${esc(d.empresa)}</dd></div>
       <div><dt>ID do cliente</dt><dd>${esc(d.chave || "")}</dd></div>
-      <div><dt>Preparada em</dt><dd>${fmtData(d.data)}</dd></div>
+      <div><dt>Data do disparo</dt><dd>${fmtData(d.data)}</dd></div>
+      <div><dt>Situação</dt><dd>${czSituacao(d, m).chip}</dd></div>
       <div><dt>Quem envia</dt><dd>${esc(d.remetente || "")}</dd></div>
       ${d.base ? `<div><dt>Base</dt><dd>${esc(d.base)}</dd></div>` : ""}
       ${d.solicitante ? `<div><dt>Solicitante</dt><dd>${esc(d.solicitante)}</dd></div>` : ""}
@@ -671,7 +681,7 @@ async function aplicarCzSel(valor, btn) {
     alvo.forEach((l) => lote.update(db.collection("coldzap_leads").doc(l._id), { envio: valor, enviado_em: valor === "enviado" ? agora : "", atualizado_em: agora }));
     await lote.commit();
     alvo.forEach((l) => Object.assign(l, { envio: valor, enviado_em: valor === "enviado" ? agora : "" }));
-    const d = state.cz.find((x) => x.id === id); const extra = valor === "enviado" && d && !d.enviado_em ? { enviado_em: hojeLocal() } : {};
+    const d = state.cz.find((x) => x.id === id); const extra = {};
     try { await db.collection("coldzap").doc(id).update({ metricas: czCalc(state.czLeads.filter((x) => x.disparo === id)), ...extra }); if (d) Object.assign(d, extra); } catch (e) {}
     state.czSel.clear(); render(); aviso(`${alvo.length} lead(s) marcados como "${ENVIO[valor]}".`);
   } catch (e) {
@@ -749,6 +759,7 @@ const temMetrica = (d) => num(d.bm?.delivered_pct) != null || num(d.bm?.opened_p
 const cmEnviado = (d) => !!d.data_disparo && d.data_disparo <= hojeLocal();
 function cmSituacao(d) {
   if (!d.data_disparo) return { k: "sem_data", chip: `<span class="chip neutro">Sem data de disparo</span>` };
+  if (d.data_disparo === hojeLocal() && !temMetrica(d)) return { k: "hoje", chip: `<span class="chip info">Disparo hoje</span>` };
   if (d.data_disparo > hojeLocal()) return { k: "programado", chip: `<span class="chip info sem-ponto"><i class="ti ti-calendar-event" aria-hidden="true"></i>Programado para ${fmtData(d.data_disparo)}</span>` };
   if (!temMetrica(d)) return { k: "sem_metricas", chip: `<span class="chip neutro">Enviado em ${fmtData(d.data_disparo)} · sem métricas</span>` };
   return { k: "ok", chip: `<span class="chip ok">Enviado em ${fmtData(d.data_disparo)}</span>` };
@@ -790,15 +801,15 @@ function telaColdmail() {
   cab("Cold mail", "Cartas personalizadas por fornecedor, enviadas pelo BillionMail. Cada fornecedor reúne os envios da campanha (base inteira ou metades A e B); a parte da base que vai pelo WhatsApp fica no ColdZap.");
   if (!state.carregado.inst) return carregando();
   const forn = cmFornecedores(); const s = cmTotais();
-  const agenda = state.cm.filter((d) => ["programado", "sem_metricas", "sem_data"].includes(cmSituacao(d).k))
+  const agenda = state.cm.filter((d) => ["hoje", "programado", "sem_metricas", "sem_data"].includes(cmSituacao(d).k))
     .sort((a, b) => (a.data_disparo || "9999").localeCompare(b.data_disparo || "9999"));
-  const cardForn = (f) => { const sit = f.programados.length ? cmSituacao(f.programados[0]) : f.semMetricas.length ? cmSituacao(f.semMetricas[0]) : cmSituacao(f.envios[f.envios.length - 1]);
+  const cardForn = (f) => { const hojeE = f.envios.find((d) => cmSituacao(d).k === "hoje"); const sit = hojeE ? cmSituacao(hojeE) : f.programados.length ? cmSituacao(f.programados[0]) : f.semMetricas.length ? cmSituacao(f.semMetricas[0]) : cmSituacao(f.envios[f.envios.length - 1]);
     return `<button type="button" class="card cm" data-ir="cmf:${esc(f.k)}">
       <div class="top"><div><div class="nome">${esc(f.empresa || "Sem nome")}</div><div class="sub">${esc(f.chave || "sem ID")}${f.produto ? " · " + esc(f.produto) : ""}</div></div><span class="ico-frente" aria-hidden="true"><i class="ti ti-mail-forward"></i></span></div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">${sit.chip}${f.envios.length > 1 ? `<span class="chip neutro sem-ponto">${f.envios.length} envios (${f.envios.map((d) => d.base_ab === "A" || d.base_ab === "B" ? d.base_ab : "inteira").join(" e ")})</span>` : ""}${f.cz ? `<span class="chip sem-ponto" style="background:var(--f-cz-soft);color:var(--f-cz)"><i class="ti ti-brand-whatsapp" aria-hidden="true"></i>WhatsApp no ColdZap</span>` : ""}</div>
       <div class="stats"><div class="stat"><b>${f.s.limpa || f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0)}</b><span>base limpa</span></div><div class="stat"><b>${f.s.entregues ? br(pct(f.s.abertos, f.s.entregues)) + "%" : "—"}</b><span>lido</span></div><div class="stat"><b>${f.envios.some((d) => num(d.respostas) != null) ? f.resp : "—"}/${f.envios.some((d) => num(d.orcamentos) != null) ? f.orc : "—"}</b><span>respostas/orç.</span></div></div>
       <span class="go">Abrir fornecedor <i class="ti ti-arrow-right" aria-hidden="true"></i></span></button>`; };
-  const linhaForn = (f) => { const sit = f.programados.length ? cmSituacao(f.programados[0]) : f.semMetricas.length ? cmSituacao(f.semMetricas[0]) : cmSituacao(f.envios[f.envios.length - 1]);
+  const linhaForn = (f) => { const hojeE = f.envios.find((d) => cmSituacao(d).k === "hoje"); const sit = hojeE ? cmSituacao(hojeE) : f.programados.length ? cmSituacao(f.programados[0]) : f.semMetricas.length ? cmSituacao(f.semMetricas[0]) : cmSituacao(f.envios[f.envios.length - 1]);
     return fileira("cm", `cmf:${esc(f.k)}`, esc(f.empresa || "Sem nome"), `${esc(f.chave || "sem ID")}${f.produto ? " · " + esc(f.produto) : ""}`,
       `${sit.chip}${f.envios.length > 1 ? `<span class="chip neutro sem-ponto">${f.envios.length} envios</span>` : ""}${f.cz ? `<span class="chip sem-ponto" style="background:var(--f-cz-soft);color:var(--f-cz)" title="WhatsApp no ColdZap"><i class="ti ti-brand-whatsapp" aria-hidden="true"></i>ColdZap</span>` : ""}`,
       [[f.s.limpa || f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0), "base limpa"], [f.s.entregues ? br(pct(f.s.abertos, f.s.entregues)) + "%" : "—", "lido"],
@@ -809,7 +820,7 @@ function telaColdmail() {
     <div class="grade-2">
       ${painel("h-cmf", "ti-filter", "Funil do cold mail", "Respostas e orçamentos somam e-mail e WhatsApp", funil(instEtapas(s), "var(--f-cm)"))}
       ${painel("h-cma", "ti-calendar-event", "Agenda", agenda.length ? `${agenda.length} envio(s)` : "", agenda.length ? `<ul class="pendencias">${agenda.map((d) => { const k = cmSituacao(d).k;
-        return `<li class="${k === "sem_metricas" ? "alerta" : ""}"><span class="pi" aria-hidden="true"><i class="ti ${k === "programado" ? "ti-calendar-event" : k === "sem_data" ? "ti-calendar-off" : "ti-chart-bar-off"}"></i></span><div><button type="button" data-ir="cmf:${esc(normChave(d.chave) || "sem-id:" + String(d.empresa || "").trim().toLowerCase())}">${esc(String(d.empresa || "").trim())} · ${baseNome(d)}</button><span>${k === "programado" ? `Programado para ${fmtData(d.data_disparo)}` : k === "sem_data" ? "Sem data de disparo" : `Enviado em ${fmtData(d.data_disparo)}: lançar os números do BillionMail`}</span></div></li>`; }).join("")}</ul>`
+        return `<li class="${k === "sem_metricas" ? "alerta" : ""}"><span class="pi" aria-hidden="true"><i class="ti ${k === "programado" || k === "hoje" ? "ti-calendar-event" : k === "sem_data" ? "ti-calendar-off" : "ti-chart-bar-off"}"></i></span><div><button type="button" data-ir="cmf:${esc(normChave(d.chave) || "sem-id:" + String(d.empresa || "").trim().toLowerCase())}">${esc(String(d.empresa || "").trim())} · ${baseNome(d)}</button><span>${k === "hoje" ? "Disparo hoje" : k === "programado" ? `Programado para ${fmtData(d.data_disparo)}` : k === "sem_data" ? "Sem data de disparo" : `Enviado em ${fmtData(d.data_disparo)}: lançar os números do BillionMail`}</span></div></li>`; }).join("")}</ul>`
         : `<p class="note" style="display:flex;gap:8px;align-items:center"><i class="ti ti-circle-check" style="color:var(--ok);font-size:18px" aria-hidden="true"></i>Nenhum envio programado nem sem números.</p>`)}
     </div>
     ${secao("h-cml", "ti-building-store", "Fornecedores", `${forn.length} fornecedor(es) · mais recentes primeiro`, forn.length ? (state.vista === "lista" ? `<div class="linhas">${forn.map(linhaForn).join("")}</div>` : `<div class="grid-cards">${forn.map(cardForn).join("")}</div>`)
@@ -831,7 +842,7 @@ function telaCmFornecedor(k) {
       <div class="mini mini-6"><div><b>${num(d.tamanho_base) ?? "—"}</b><span>Tamanho da base</span></div><div><b>${num(d.base_limpa) ?? "—"}</b><span>Base limpa</span></div>
         <div><b>${tem ? br(pct(s.entregues, s.env)) + "%" : "—"}</b><span>Entregues</span></div><div><b>${tem ? br(pct(s.abertos, s.entregues)) + "%" : "—"}</b><span>Lido</span></div>
         <div><b>${tem ? br(pct(s.cliques, s.entregues)) + "%" : "—"}</b><span>Cliques</span></div><div><b>${num(d.respostas) ?? "—"} / ${num(d.orcamentos) ?? "—"}</b><span>Respostas / orçamentos</span></div></div>
-      ${sit.k === "programado" ? `<p class="note">As métricas entram depois do envio, pela tela de Analytics do BillionMail.</p>` : sit.k === "sem_metricas" ? `<p class="note" style="color:var(--bad)">Já passou da data do disparo e ainda não há números do BillionMail. ${state.podeEditar ? "Use “Editar” para lançar." : ""}</p>` : ""}
+      ${sit.k === "programado" || sit.k === "hoje" ? `<p class="note">As métricas entram depois do envio, pela tela de Analytics do BillionMail.</p>` : sit.k === "sem_metricas" ? `<p class="note" style="color:var(--bad)">Já passou da data do disparo e ainda não há números do BillionMail. ${state.podeEditar ? "Use “Editar” para lançar." : ""}</p>` : ""}
       ${d.assunto ? `<p class="note">Assunto: ${esc(d.assunto)}</p>` : ""}${d.obs ? `<p class="note">Obs.: ${esc(d.obs)}</p>` : ""}</article>`; };
   const czm = f.cz ? czMetricas(f.cz) : null;
   return `<div class="pilha">
@@ -1007,7 +1018,9 @@ function pendencias() {
   state.disparos.filter((d) => d.enviado_em && !(d.bm && +d.bm.enviados)).forEach((d) =>
     p.push({ ic: "ti-mail", t: `${d.nome}: lançar os números do BillionMail`, s: "Enviados, entregues, abertos, cliques e bounce", ir: `disparo:${d.id}` }));
   state.cz.forEach((d) => { const m = czMetricas(d);
-    if (m.pendentes) p.push({ ic: "ti-brand-whatsapp", t: `${d.empresa}: ${m.pendentes} lead(s) sem envio marcado`, s: `Lista de ${fmtData(d.data)}`, ir: `czd:${d.id}` });
+    const sz = czSituacao(d, m);
+    if (sz.k === "atrasado") p.push({ ic: "ti-brand-whatsapp", alerta: true, t: `${d.empresa}: WhatsApp atrasado, ${m.pendentes} lead(s) sem envio`, s: `Disparo marcado para ${fmtData(d.data)}`, ir: `czd:${d.id}` });
+    if (sz.k === "hoje") p.push({ ic: "ti-brand-whatsapp", t: `${d.empresa}: disparo de WhatsApp hoje, ${m.pendentes} lead(s) sem envio`, s: "Marque o envio conforme mandar", ir: `czd:${d.id}` });
     if (m.orcamentos > m.respostas) p.push({ ic: "ti-alert-triangle", alerta: true, t: `${d.empresa}: ${m.orcamentos} orçamento(s) com ${m.respostas} resposta(s) marcada(s)`, s: "Marque a resposta dos leads que viraram orçamento", ir: `czd:${d.id}` });
   });
   if (state.czOk) {
@@ -1026,9 +1039,8 @@ function atividades() {
   state.disparos.forEach((d) => { const pa = state.pastas.find((x) => x.id === d.pasta)?.nome || "Fidelização";
     if (d.enviado_em) ev.push({ data: d.enviado_em, cls: "fid", t: `${pa} · ${d.nome} enviado`, s: `Fidelização · ${metricasDisparo(d).geral.total} leads`, ir: `disparo:${d.id}` });
     if (d.data) ev.push({ data: d.data, cls: "fid", t: `${pa} · ${d.nome} preparado`, s: `Fidelização · ${metricasDisparo(d).geral.total} leads`, ir: `disparo:${d.id}` }); });
-  state.cz.forEach((d) => ev.push(d.enviado_em
-    ? { data: d.enviado_em, cls: "cz", t: `WhatsApp enviado: ${d.empresa}`, s: `ColdZap · ${czMetricas(d).total} leads`, ir: `czd:${d.id}` }
-    : { data: d.data, cls: "cz", t: `Lista separada: ${d.empresa}`, s: `ColdZap · ${czMetricas(d).total} leads aguardando envio`, ir: `czd:${d.id}` }));
+  state.cz.forEach((d) => { const m = czMetricas(d); const k = czSituacao(d, m).k;
+    ev.push({ data: d.data, cls: "cz", t: `WhatsApp ${k === "disparado" ? "disparado" : k === "programado" ? "programado" : k === "hoje" ? "de hoje" : "atrasado"}: ${d.empresa}`, s: `ColdZap · ${m.total} leads${m.pendentes ? ` · ${m.pendentes} sem envio` : ""}`, ir: `czd:${d.id}` }); });
   state.cm.forEach((d) => { if (d.data_disparo) ev.push({ data: d.data_disparo, cls: "cm", t: `Cold mail ${d.data_disparo > hojeLocal() ? "programado" : "enviado"}: ${String(d.empresa || "").trim()}`, s: `Cold mail · ${baseNome(d).toLowerCase()}${num(d.base_limpa) != null ? " · " + num(d.base_limpa) + " e-mails" : ""}`, ir: `cmf:${normChave(d.chave) || "sem-id:" + String(d.empresa || "").trim().toLowerCase()}` }); });
   state.inst.forEach((d) => { const dt = d.data_disparo || d.data_solicitacao; if (dt) ev.push({ data: dt, cls: "inst", t: `${d.data_disparo ? "Disparo" : "Pedido"} institucional: ${d.segmento || "sem segmento"}`, s: `Institucional${d.solicitante ? " · " + d.solicitante : ""}`, ir: `inst:${d.id}` }); });
   return ev.filter((e) => e.data).sort((a, b) => b.data.localeCompare(a.data));
