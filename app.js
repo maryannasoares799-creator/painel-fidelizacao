@@ -753,7 +753,7 @@ async function baixarCz(id, btn) {
 /* ---------- Cold mail: carta por fornecedor, pelo BillionMail ----------
    Cada documento é um envio (base inteira, metade A ou metade B) e fica na coleção "institucional" com frente: "coldmail"
    (mesmas regras de acesso: a empresa vê, quem opera edita). Os envios do mesmo fornecedor são agrupados pelo ID do cliente.
-   Respostas e orçamentos são o total da campanha (e-mail + WhatsApp), como na planilha DASH. */
+   Canais separados: aqui ficam só os números do e-mail. Os 20 a 30 leads da mesma base que vão pelo WhatsApp ficam no ColdZap. */
 const normChave = (c) => String(c ?? "").replace(/\.0$/, "").trim().toLowerCase();
 const temMetrica = (d) => num(d.bm?.delivered_pct) != null || num(d.bm?.opened_pct) != null || num(d.bm?.enviados) != null;
 const cmEnviado = (d) => !!d.data_disparo && d.data_disparo <= hojeLocal();
@@ -789,7 +789,7 @@ function cmKpis(s, nForn) {
     ["Entregues", s.entregues, s.env ? `${br(pct(s.entregues, s.env))}% dos ${s.env} enviados` : "lance os números do BillionMail", false, "ti-mail-check", s.env ? pct(s.entregues, s.env) : null],
     ["% lido", `${br(pct(s.abertos, s.entregues))}%`, `${s.abertos} abertos`, false, "ti-mail-opened", s.entregues ? pct(s.abertos, s.entregues) : null],
     ["Cliques no link", s.cliques, `${br(pct(s.cliques, s.entregues))}% dos entregues`, false, "ti-click"],
-    ["Respostas", s.respostas, "total da campanha (e-mail + WhatsApp)", false, "ti-message-circle"],
+    ["Respostas", s.respostas, "pelo e-mail", false, "ti-message-circle"],
     ["Orçamentos", s.orcamentos, `${br(pct(s.orcamentos, s.respostas))}% das respostas (conversão)`, true, "ti-file-invoice"],
   ];
   return kpiGrid(nForn == null ? itens.slice(1) : itens);
@@ -806,19 +806,19 @@ function telaColdmail() {
   const cardForn = (f) => { const hojeE = f.envios.find((d) => cmSituacao(d).k === "hoje"); const sit = hojeE ? cmSituacao(hojeE) : f.programados.length ? cmSituacao(f.programados[0]) : f.semMetricas.length ? cmSituacao(f.semMetricas[0]) : cmSituacao(f.envios[f.envios.length - 1]);
     return `<button type="button" class="card cm" data-ir="cmf:${esc(f.k)}">
       <div class="top"><div><div class="nome">${esc(f.empresa || "Sem nome")}</div><div class="sub">${esc(f.chave || "sem ID")}${f.produto ? " · " + esc(f.produto) : ""}</div></div><span class="ico-frente" aria-hidden="true"><i class="ti ti-mail-forward"></i></span></div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">${sit.chip}${f.envios.length > 1 ? `<span class="chip neutro sem-ponto">${f.envios.length} envios (${f.envios.map((d) => d.base_ab === "A" || d.base_ab === "B" ? d.base_ab : "inteira").join(" e ")})</span>` : ""}${f.cz ? `<span class="chip sem-ponto" style="background:var(--f-cz-soft);color:var(--f-cz)"><i class="ti ti-brand-whatsapp" aria-hidden="true"></i>WhatsApp no ColdZap</span>` : ""}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">${sit.chip}${f.envios.length > 1 ? `<span class="chip neutro sem-ponto">${f.envios.length} envios (${f.envios.map((d) => d.base_ab === "A" || d.base_ab === "B" ? d.base_ab : "inteira").join(" e ")})</span>` : ""}</div>
       <div class="stats"><div class="stat"><b>${f.s.limpa || f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0)}</b><span>base limpa</span></div><div class="stat"><b>${f.s.entregues ? br(pct(f.s.abertos, f.s.entregues)) + "%" : "—"}</b><span>lido</span></div><div class="stat"><b>${f.envios.some((d) => num(d.respostas) != null) ? f.resp : "—"}/${f.envios.some((d) => num(d.orcamentos) != null) ? f.orc : "—"}</b><span>respostas/orç.</span></div></div>
       <span class="go">Abrir fornecedor <i class="ti ti-arrow-right" aria-hidden="true"></i></span></button>`; };
   const linhaForn = (f) => { const hojeE = f.envios.find((d) => cmSituacao(d).k === "hoje"); const sit = hojeE ? cmSituacao(hojeE) : f.programados.length ? cmSituacao(f.programados[0]) : f.semMetricas.length ? cmSituacao(f.semMetricas[0]) : cmSituacao(f.envios[f.envios.length - 1]);
     return fileira("cm", `cmf:${esc(f.k)}`, esc(f.empresa || "Sem nome"), `${esc(f.chave || "sem ID")}${f.produto ? " · " + esc(f.produto) : ""}`,
-      `${sit.chip}${f.envios.length > 1 ? `<span class="chip neutro sem-ponto">${f.envios.length} envios</span>` : ""}${f.cz ? `<span class="chip sem-ponto" style="background:var(--f-cz-soft);color:var(--f-cz)" title="WhatsApp no ColdZap"><i class="ti ti-brand-whatsapp" aria-hidden="true"></i>ColdZap</span>` : ""}`,
+      `${sit.chip}${f.envios.length > 1 ? `<span class="chip neutro sem-ponto">${f.envios.length} envios</span>` : ""}`,
       [[f.s.limpa || f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0), "base limpa"], [f.s.entregues ? br(pct(f.s.abertos, f.s.entregues)) + "%" : "—", "lido"],
        [`${f.envios.some((d) => num(d.respostas) != null) ? f.resp : "—"}/${f.envios.some((d) => num(d.orcamentos) != null) ? f.orc : "—"}`, "resp./orç."]]); };
   return `<div class="pilha">
     <div class="acoes">${state.podeEditar ? `<button type="button" class="btn" data-ir="cm-novo"><i class="ti ti-plus" aria-hidden="true"></i>Novo cold mail</button>` : ""}<span class="note">Os números do BillionMail podem mudar: abra o fornecedor e use "Editar" para atualizar.</span></div>
-    ${secao("h-cmt", "ti-chart-bar", "Resultado", "Funil dos envios com números; respostas e orçamentos de toda a campanha", cmKpis(s, forn.length))}
+    ${secao("h-cmt", "ti-chart-bar", "Resultado do e-mail", "Funil dos envios com números do BillionMail · o WhatsApp fica no ColdZap", cmKpis(s, forn.length))}
     <div class="grade-2">
-      ${painel("h-cmf", "ti-filter", "Funil do cold mail", "Respostas e orçamentos somam e-mail e WhatsApp", funil(instEtapas(s), "var(--f-cm)"))}
+      ${painel("h-cmf", "ti-filter", "Funil do cold mail", "Só o e-mail", funil(instEtapas(s), "var(--f-cm)"))}
       ${painel("h-cma", "ti-calendar-event", "Agenda", agenda.length ? `${agenda.length} envio(s)` : "", agenda.length ? `<ul class="pendencias">${agenda.map((d) => { const k = cmSituacao(d).k;
         return `<li class="${k === "sem_metricas" ? "alerta" : ""}"><span class="pi" aria-hidden="true"><i class="ti ${k === "programado" || k === "hoje" ? "ti-calendar-event" : k === "sem_data" ? "ti-calendar-off" : "ti-chart-bar-off"}"></i></span><div><button type="button" data-ir="cmf:${esc(normChave(d.chave) || "sem-id:" + String(d.empresa || "").trim().toLowerCase())}">${esc(String(d.empresa || "").trim())} · ${baseNome(d)}</button><span>${k === "hoje" ? "Disparo hoje" : k === "programado" ? `Programado para ${fmtData(d.data_disparo)}` : k === "sem_data" ? "Sem data de disparo" : `Enviado em ${fmtData(d.data_disparo)}: lançar os números do BillionMail`}</span></div></li>`; }).join("")}</ul>`
         : `<p class="note" style="display:flex;gap:8px;align-items:center"><i class="ti ti-circle-check" style="color:var(--ok);font-size:18px" aria-hidden="true"></i>Nenhum envio programado nem sem números.</p>`)}
@@ -854,11 +854,14 @@ function telaCmFornecedor(k) {
       ${ref.base_link && /^https?:\/\//.test(ref.base_link) ? `<div><dt>Base de disparo</dt><dd><a href="${esc(ref.base_link)}" target="_blank" rel="noopener">Abrir a base</a></dd></div>` : ""}
       <div class="largo"><dt>Produto</dt><dd>${esc(f.produto || "—")}</dd></div>
     </dl>
-    ${secao("h-cmr", "ti-chart-bar", "Resultado da campanha", "Funil dos envios com números · respostas e orçamentos somam e-mail e WhatsApp", cmKpis(tot, null))}
+    ${secao("h-cmr", "ti-chart-bar", "Resultado do e-mail", "Envios com números do BillionMail", cmKpis(tot, null))}
     ${secao("h-cmv", "ti-mail-forward", "Envios", `${f.envios.length} envio(s)`, `<div class="envios">${f.envios.map(envio).join("")}</div>
       ${state.podeEditar ? `<button type="button" class="btn secundario" style="justify-self:start;margin-top:14px" data-ir="cm-novo:${esc(f.k)}"><i class="ti ti-plus" aria-hidden="true"></i>Novo envio deste fornecedor</button>` : ""}`)}
-    ${f.cz ? painel("h-cmz", "ti-brand-whatsapp", "WhatsApp (ColdZap)", `${czm.total} leads separados`, `<div class="mini"><div><b>${czm.enviados}/${czm.total}</b><span>Enviados</span></div><div><b>${czm.respostas}</b><span>Respostas marcadas</span></div><div><b>${czm.orcamentos}</b><span>Orçamentos marcados</span></div><div><b>${czm.nao_existe}</b><span>Número não existe</span></div></div>
-      <p class="note">Esses números são marcados lead a lead no ColdZap e já fazem parte do total da campanha acima.</p><button type="button" class="abrir cz" data-ir="czd:${esc(f.cz.id)}">Abrir a lista no ColdZap <i class="ti ti-arrow-right" aria-hidden="true"></i></button>`, " cz") : ""}
+    ${f.cz ? `<section class="painel" aria-labelledby="h-cmb"><div class="section-head"><h2 id="h-cmb"><i class="ti ti-arrows-split" aria-hidden="true"></i>Base dividida em dois canais</h2><span class="note">${(f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0)) + czm.total} leads no total</span></div>
+      <div class="canais-base"><div class="cm"><i class="ti ti-mail-forward" aria-hidden="true"></i><div><b>${f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0)}</b><span>pelo e-mail (Cold mail)</span></div></div>
+      <div class="cz"><i class="ti ti-brand-whatsapp" aria-hidden="true"></i><div><b>${czm.total}</b><span>pelo WhatsApp (ColdZap)</span></div></div></div></section>` : ""}
+    ${f.cz ? painel("h-cmz", "ti-brand-whatsapp", "WhatsApp (ColdZap)", `${czm.total} leads separados · ${czSituacao(f.cz, czm).chip}`, `<div class="mini"><div><b>${czm.enviados}/${czm.total}</b><span>Enviados</span></div><div><b>${czm.respostas}</b><span>Respostas marcadas</span></div><div><b>${czm.orcamentos}</b><span>Orçamentos marcados</span></div><div><b>${czm.nao_existe}</b><span>Número não existe</span></div></div>
+      <p class="note">Esses números são do WhatsApp, marcados lead a lead no ColdZap. Não entram no resultado do e-mail acima.</p><button type="button" class="abrir cz" data-ir="czd:${esc(f.cz.id)}">Abrir a lista no ColdZap <i class="ti ti-arrow-right" aria-hidden="true"></i></button>`, " cz") : ""}
   </div>`;
 }
 
@@ -896,7 +899,7 @@ function telaCmForm(id, chavePre) {
       ${f("clicked_pct", "Clicked % (cliques)", "text", pctv(bm.clicked_pct), ' inputmode="decimal"')}
       ${f("bounced_pct", "Bounced %", "text", pctv(bm.bounced_pct), ' inputmode="decimal"')}
     </div></fieldset>
-    <fieldset><legend>Retorno da campanha</legend><p class="note" style="margin:0">Total da campanha: respostas e orçamentos que vieram pelo e-mail e pelo WhatsApp.</p><div class="campos">
+    <fieldset><legend>Retorno do e-mail</legend><p class="note" style="margin:0">Respostas e orçamentos que vieram pelo e-mail. O WhatsApp da mesma base é marcado lead a lead no ColdZap.</p><div class="campos">
       ${f("respostas", "Respostas", "number", d.respostas, ' min="0" step="1" inputmode="numeric"')}
       ${f("orcamentos", "Orçamentos", "number", d.orcamentos, ' min="0" step="1" inputmode="numeric"')}
       <label class="campo largo" for="c_obs">Observação<textarea id="c_obs" rows="3"${dis}>${esc(d.obs || "")}</textarea></label>
@@ -974,12 +977,12 @@ const FRENTES_INFO = {
     medida: "% lido, cliques, respostas e orçamentos. Conversão = orçamentos ÷ respostas." },
   coldmail: { cls: "cm", ico: "ti-mail-forward", nome: "Cold mail", sub: "Carta por fornecedor", destino: "coldmail",
     para_quem: "A base de leads que já cotou o produto do fornecedor, inteira ou dividida em metades A e B.",
-    canal: "E-mail pelo BillionMail. Uma parte da base pode ir pelo WhatsApp (ColdZap).",
+    canal: "E-mail pelo BillionMail. A base é dividida: 20 a 30 leads vão pelo WhatsApp (ColdZap) e o restante pelo e-mail.",
     mensagem: "Carta personalizada que cita o fornecedor e o produto dele.",
     quem_envia: "Growth, a pedido de um solicitante",
-    medida: "Entregues, % lido, cliques, respostas e orçamentos da campanha (e-mail + WhatsApp)." },
+    medida: "Entregues, % lido, cliques, respostas e orçamentos do e-mail." },
   coldzap: { cls: "cz", ico: "ti-brand-whatsapp", nome: "ColdZap", sub: "WhatsApp do cold mail", destino: "coldzap",
-    para_quem: "Uma parte da base de cada cold mail por fornecedor. O restante recebe o e-mail.",
+    para_quem: "20 a 30 leads separados da base de cada cold mail por fornecedor. O restante da base recebe o e-mail (Cold mail).",
     canal: "WhatsApp, enviado à mão, lead a lead.",
     mensagem: "Mensagem personalizada sobre o produto do fornecedor.",
     quem_envia: "Maryanna",
@@ -1006,9 +1009,7 @@ function totaisFrentes() {
   const f = somar(state.disparos.map((d) => metricasDisparo(d).geral));
   const i = instSomar(state.inst);
   const z = czSomar(state.cz.map(czMetricas)); const c = cmTotais();
-  const comCm = new Set(state.cm.map((d) => normChave(d.chave)).filter(Boolean));
-  const zFora = czSomar(state.cz.filter((d) => !comCm.has(normChave(d.chave))).map(czMetricas));
-  return { f, i, c, z, zFora, enviados: f.enviados + i.env + c.env + z.enviados, respostas: f.respostas + i.respostas + c.respostas + zFora.respostas, orcamentos: f.pedidos + i.orcamentos + c.orcamentos + zFora.orcamentos };
+  return { f, i, c, z, enviados: f.enviados + i.env + c.env + z.enviados, respostas: f.respostas + i.respostas + c.respostas + z.respostas, orcamentos: f.pedidos + i.orcamentos + c.orcamentos + z.orcamentos };
 }
 /* O que falta enviar, lançar ou conferir, calculado a partir dos dados. Alertas (números que não fecham) vêm primeiro. */
 function pendencias() {
@@ -1082,7 +1083,7 @@ function telaGeral() {
         <tr><td><b>Institucional</b></td><td class="num">${i.env}</td><td class="num">${i.respostas}</td><td class="num">${i.orcamentos}</td></tr>
         <tr><td><b>Cold mail</b></td><td class="num">${c.env}</td><td class="num">${c.respostas}</td><td class="num">${c.orcamentos}</td></tr>
         <tr><td><b>ColdZap</b></td><td class="num">${z.enviados}</td><td class="num">${z.respostas}</td><td class="num">${z.orcamentos}</td></tr></tbody></table></div>
-        <p class="note">No Cold mail, respostas e orçamentos são o total da campanha (e-mail + WhatsApp). Por isso o WhatsApp desses fornecedores, marcado no ColdZap, não entra de novo no total do funil.</p>`)}
+        <p class="note">Cold mail e ColdZap são canais separados da mesma campanha: a base de cada fornecedor é dividida, com 20 a 30 leads pelo WhatsApp (ColdZap) e o restante pelo e-mail (Cold mail).</p>`)}
       ${painel("h-pend", "ti-checklist", "Pendências", pend.length ? `${pend.length} item(ns)` : "", mostra.length ? `<ul class="pendencias">${mostra.map((x) => `<li class="${x.alerta ? "alerta" : ""}"><span class="pi" aria-hidden="true"><i class="ti ${x.ic}"></i></span><div><button type="button" data-ir="${esc(x.ir)}">${esc(x.t)}</button><span>${esc(x.s)}</span></div></li>`).join("")}</ul>${pend.length > mostra.length ? `<p class="note">E mais ${pend.length - mostra.length}.</p>` : ""}`
         : `<p class="note" style="display:flex;gap:8px;align-items:center"><i class="ti ti-circle-check" style="color:var(--ok);font-size:18px" aria-hidden="true"></i>Nada pendente agora.</p>`)}
     </div>
