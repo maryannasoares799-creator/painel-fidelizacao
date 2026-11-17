@@ -71,7 +71,20 @@ function calc(leads, disp) {
   });
   return r;
 }
+/* Disparo lançado no painel ("manual"): os números vêm do formulário Novo disparo, não da lista de leads.
+   E-mail: enviados = Success do BillionMail (ou a base limpa, se o Success ainda não foi lançado). WhatsApp: o que foi digitado. */
+function fidManual(d) {
+  const r = d.retorno || {}; const e = r.email || {}; const w = r.whatsapp || {};
+  const enviou = !!dataEnvio(d); const limpa = num(d.base_limpa_email); const succ = num(d.bm?.enviados);
+  const emEnv = enviou ? succ ?? limpa ?? 0 : 0; const emTotal = enviou ? emEnv : limpa ?? 0;
+  const canal = (total, env, x) => ({ total, enviados: env, respostas: num(x.respostas) || 0, interessados: num(x.interessados) || 0, sairam: num(x.sairam) || 0, pedidos: num(x.pedidos) || 0, voltaram: 0 });
+  const email = canal(emTotal, emEnv, e); const wEnv = num(w.enviados) || 0; const whatsapp = canal(Math.max(num(w.total) || 0, wEnv), wEnv, w);
+  return { geral: somar([email, whatsapp]), email, whatsapp };
+}
+/* Data em que o disparo saiu: na lista de leads é o "Envio do e-mail"; no disparo lançado é a data do disparo, se já chegou. */
+const dataEnvio = (d) => (d.manual ? (d.data && d.data <= hojeLocal() ? d.data : "") : d.enviado_em || "");
 function metricasDisparo(d) {
+  if (d.manual) return fidManual(d);
   if (state.leadsOk) {
     const ls = state.leads.filter((l) => l.disparo === d.id);
     return { geral: calc(ls, d), email: calc(ls.filter((l) => l.canal === "email"), d), whatsapp: calc(ls.filter((l) => l.canal === "whatsapp"), d) };
@@ -95,6 +108,8 @@ function hashDe(r) {
   if (r.tipo === "coldmail") return "coldmail";
   if (r.tipo === "cm-novo") return "coldmail-novo";
   if (r.tipo === "cmf") return "cmf-" + encodeURIComponent(r.id);
+  if (r.tipo === "fid-novo") return "fidelizacao-novo-" + r.id;
+  if (r.tipo === "fid-editar") return "editar-" + r.id;
   if (r.tipo === "visao") return "fid-" + r.id;
   return r.id;
 }
@@ -118,6 +133,8 @@ function rotaDoHash() {
   if (h === "coldzap") return { tipo: "coldzap" };
   if (h.startsWith("in-")) return { tipo: "inst", id: h };
   if (h.startsWith("cz-")) return { tipo: "czd", id: h };
+  if (h.startsWith("fidelizacao-novo-")) return { tipo: "fid-novo", id: h.slice(17) === "necessidade" ? "necessidade" : "produto" };
+  if (h.startsWith("editar-")) return { tipo: "fid-editar", id: h.slice(7) };
   if (state.disparos.some((d) => d.id === h)) return { tipo: "disparo", id: h };
   if (state.pastas.some((p) => p.id === h)) return { tipo: "pasta", id: h };
   return { tipo: "geral" };
@@ -126,8 +143,8 @@ function rotaDoHash() {
 function abas() {
   const f = FRENTE(state.rota);
   const r = state.rota;
-  const sub = (k) => `<button type="button" class="menu-item menu-sub" data-ir="visao:${k}"${r.tipo === "visao" && r.id === k ? ' aria-current="page"' : ""}><i class="ti ${VISOES[k].ico}" aria-hidden="true"></i>${VISOES[k].nome}</button>`;
-  const item = ([k, destino, ico, nome, qtd]) => `<button type="button" class="menu-item" data-ir="${destino}"${f === k && r.tipo !== "visao" ? ' aria-current="page"' : ""}><i class="ti ${ico}" aria-hidden="true"></i>${nome}${iniciado && qtd != null ? `<span class="qtd" aria-label="${qtd} registro(s)">${qtd}</span>` : ""}</button>`;
+  const sub = (k) => `<button type="button" class="menu-item menu-sub" data-ir="visao:${k}"${(r.tipo === "visao" || r.tipo === "fid-novo") && r.id === k ? ' aria-current="page"' : ""}><i class="ti ${VISOES[k].ico}" aria-hidden="true"></i>${VISOES[k].nome}</button>`;
+  const item = ([k, destino, ico, nome, qtd]) => `<button type="button" class="menu-item" data-ir="${destino}"${f === k && r.tipo !== "visao" && r.tipo !== "fid-novo" ? ' aria-current="page"' : ""}><i class="ti ${ico}" aria-hidden="true"></i>${nome}${iniciado && qtd != null ? `<span class="qtd" aria-label="${qtd} registro(s)">${qtd}</span>` : ""}</button>`;
   $("abas").innerHTML = `<div class="menu-rotulo">Painel</div>` + [
     ["geral", "geral", "ti-layout-dashboard", "Visão geral"],
     ["estrategia", "estrategia", "ti-route", "Estratégia"],
@@ -150,6 +167,9 @@ function crumbs() {
     parts.push(`<span aria-current="page">${esc(d?.nome)}</span>`);
   }
   if (r.tipo === "visao") parts = [`<button type="button" data-ir="inicio">Fidelização</button>`, `<span aria-current="page">${VISOES[r.id]?.nome || ""}</span>`];
+  if (r.tipo === "fid-novo") parts = [`<button type="button" data-ir="inicio">Fidelização</button>`, `<button type="button" data-ir="visao:${esc(r.id)}">${VISOES[r.id]?.nome || ""}</button>`, `<span aria-current="page">Novo disparo</span>`];
+  if (r.tipo === "fid-editar") { const d = state.disparos.find((x) => x.id === r.id);
+    parts = [`<button type="button" data-ir="inicio">Fidelização</button>`, ...(d ? [`<button type="button" data-ir="disparo:${esc(d.id)}">${esc(d.nome)}</button>`] : []), `<span aria-current="page">Editar disparo</span>`]; }
   if (r.tipo === "cmf") parts = [`<button type="button" data-ir="coldmail">Cold mail</button>`, `<span aria-current="page">${esc(cmFornecedores().find((x) => x.k === r.id)?.empresa || "Fornecedor")}</span>`];
   if (r.tipo === "cm" || r.tipo === "cm-novo") { const d = r.tipo === "cm" ? state.cm.find((x) => x.id === r.id) : null; const k = d ? normChave(d.chave) || "sem-id:" + String(d.empresa || "").trim().toLowerCase() : r.id; const fo = k ? cmFornecedores().find((x) => x.k === k) : null;
     parts = [`<button type="button" data-ir="coldmail">Cold mail</button>`, ...(fo ? [`<button type="button" data-ir="cmf:${esc(fo.k)}">${esc(fo.empresa)}</button>`] : []), `<span aria-current="page">${r.tipo === "cm" ? "Editar envio" : "Novo envio"}</span>`]; }
@@ -180,7 +200,13 @@ function canais(mm) {
   }).join("")}</div>`;
   return `<div class="canais">${card(mm.whatsapp, "WhatsApp", "ti-brand-whatsapp", "var(--f-cz)")}${card(mm.email, "E-mail", "ti-mail", "var(--f-fid)")}</div>`;
 }
-const situacao = (d) => (d.enviado_em ? `<span class="chip ok">Enviado em ${fmtData(d.enviado_em)}</span>` : `<span class="chip neutro">Preparado, aguardando envio</span>`);
+function situacao(d) {
+  if (!d.manual) return d.enviado_em ? `<span class="chip ok">Enviado em ${fmtData(d.enviado_em)}</span>` : `<span class="chip neutro">Preparado, aguardando envio</span>`;
+  if (!d.data) return `<span class="chip neutro">Sem data de disparo</span>`;
+  if (d.data > hojeLocal()) return `<span class="chip info sem-ponto"><i class="ti ti-calendar-event" aria-hidden="true"></i>Programado para ${fmtData(d.data)}</span>`;
+  const temNum = num(d.bm?.enviados) || num(d.retorno?.whatsapp?.enviados);
+  return temNum ? `<span class="chip ok">Enviado em ${fmtData(d.data)}</span>` : `<span class="chip neutro">Enviado em ${fmtData(d.data)} · sem números</span>`;
+}
 
 /* As duas visões da Fidelização. Todo disparo tem uma visão (campo "visao"; sem o campo, conta como "produto"). */
 const VISOES = {
@@ -253,7 +279,7 @@ async function salvarEnvioEmail(id, data, btn, desmarcar = false) {
 function cardDisparo(d) {
   const m = metricasDisparo(d).geral; const p = state.pastas.find((x) => x.id === d.pasta);
   return `<button type="button" class="card fid" data-ir="disparo:${esc(d.id)}">
-    <div class="top"><div><div class="nome">${p ? esc(p.nome) + " · " : ""}${esc(d.nome)}</div><div class="sub">${fmtData(d.enviado_em || d.data)} · ${m.total} leads</div></div>${situacao(d)}</div>
+    <div class="top"><div><div class="nome">${p ? esc(p.nome) + " · " : ""}${esc(d.nome)}</div><div class="sub">${d.segmento ? esc(d.segmento) + " · " : ""}${fmtData(d.enviado_em || d.data)} · ${m.total} leads</div></div>${situacao(d)}</div>
     <div>${chipVisao(d)}</div>
     ${d.carta ? `<div class="sub">${esc(d.carta)}</div>` : ""}
     ${progresso([["Enviados", m.enviados, "seg-ok"], ["Aguardando envio", Math.max(0, m.total - m.enviados), "seg-neutro"]], m.total)}
@@ -298,7 +324,9 @@ function telaVisao(k) {
   const m = somar(ds.map((d) => metricasDisparo(d).geral));
   const pastas = [...state.pastas].sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99));
   const matrizes = pastas.map((p) => (k === "produto" ? matrizProduto(p) : matrizNecessidade(p))).filter(Boolean);
+  const novoBtn = state.podeEditar ? `<button type="button" class="btn" data-ir="fid-novo:${k}"><i class="ti ti-plus" aria-hidden="true"></i>Novo disparo</button>` : "";
   return `<div class="pilha">
+    ${novoBtn ? `<div class="acoes">${novoBtn}${ds.length ? `<button type="button" class="btn secundario" data-rolar="h-vd"><i class="ti ti-list" aria-hidden="true"></i>Ver os disparos (${ds.length})</button>` : ""}<span class="note">Registre cada disparo ${v.nome.toLowerCase()}: data, base, números do BillionMail e o retorno.</span></div>` : ""}
     <dl class="ficha">
       <div><dt>Para quem</dt><dd>${v.base}</dd></div>
       <div><dt>O que oferece</dt><dd>${v.oferta}</dd></div>
@@ -307,13 +335,13 @@ function telaVisao(k) {
     </dl>
     ${secao("h-vr", "ti-chart-bar", "Resultado", `${ds.length} disparo(s) ${v.nome.toLowerCase()}`, kpis(m))}
     ${secao("h-vo", "ti-target", "O que oferecer", k === "produto" ? "Para cada tipo cotado, as outras opções do mesmo produto" : "Por produto cotado e por segmento", matrizes.join("") || vazio("ti-list-search", "Nenhuma lista de oferta cadastrada ainda."))}
-    ${secao("h-vd", "ti-send", "Disparos", "", ds.length ? `<div class="grid-cards">${ds.map(cardDisparo).join("")}</div>` : vazio("ti-send-off", `Nenhum disparo ${v.nome.toLowerCase()} ainda.`, "O primeiro disparo aparece aqui quando for preparado."))}
+    ${secao("h-vd", "ti-send", "Disparos", ds.length ? `${ds.length} disparo(s) · abra um para ver ou atualizar os números` : "", ds.length ? `<div class="grid-cards">${ds.map(cardDisparo).join("")}</div>` : vazio("ti-send-off", `Nenhum disparo ${v.nome.toLowerCase()} ainda.`, state.podeEditar ? "Use “Novo disparo” para registrar o primeiro." : "O primeiro disparo aparece aqui quando for registrado."), novoBtn)}
   </div>`;
 }
 function telaPasta(id) {
   const p = state.pastas.find((x) => x.id === id); if (!p) return telaInicio();
   cab(p.nome, p.descricao || "");
-  const ds = state.disparos.filter((d) => d.pasta === id).sort((a, b) => (b.numero || 0) - (a.numero || 0));
+  const ds = state.disparos.filter((d) => d.pasta === id).sort((a, b) => (b.data || "").localeCompare(a.data || "") || (b.numero || 0) - (a.numero || 0));
   return `<div class="pilha">
     ${secao("h-pr", "ti-chart-bar", "Resultado da pasta", "", kpis(metricasPasta(p)))}
     ${p.estrategia?.length ? secao("h-est", VISOES.produto.ico, "Por produto: o que oferecer", "Para cada tipo cotado, as outras opções do mesmo produto", matrizProduto(p)) : ""}
@@ -324,6 +352,7 @@ function telaPasta(id) {
 function telaDisparo(id) {
   const d = state.disparos.find((x) => x.id === id); if (!d) return telaInicio();
   const p = state.pastas.find((x) => x.id === d.pasta) || {};
+  if (d.manual) return telaFidManual(d, p);
   cab(`${p.nome ? p.nome + " · " : ""}${d.nome}`, d.produto ? `Produto: ${d.produto}` : "");
   const mm = metricasDisparo(d); const cl = classesBloco(d);
   const fun = painel("h-fg", "ti-filter", "Funil do disparo", "E-mail e WhatsApp juntos", funil(fidEtapas(mm.geral), "var(--f-fid)"));
@@ -349,6 +378,119 @@ function telaDisparo(id) {
     <section>${blocoLeads(d)}</section></div>`;
 }
 
+/* Ficha de um disparo lançado no painel: os números vêm do formulário (não há lista de leads). */
+function telaFidManual(d, p) {
+  cab(`${p.nome ? p.nome + " · " : ""}${d.nome}`, d.segmento ? `Segmento: ${d.segmento}` : d.carta || "");
+  const mm = metricasDisparo(d); const w = d.retorno?.whatsapp || {};
+  return `<div class="pilha">
+    <dl class="ficha">
+      <div><dt>Situação</dt><dd>${situacao(d)}</dd></div>
+      <div><dt>Visão</dt><dd>${chipVisao(d)}</dd></div>
+      ${d.segmento ? `<div><dt>Segmento</dt><dd>${esc(d.segmento)}</dd></div>` : ""}
+      <div><dt>Data do disparo</dt><dd>${d.data ? fmtData(d.data) : "Sem data"}</dd></div>
+      ${d.remetente ? `<div><dt>Remetente</dt><dd>${esc(d.remetente)}</dd></div>` : ""}
+      <div><dt>Canais</dt><dd>${num(d.base_limpa_email) ?? 0} por e-mail · ${num(w.total) ?? num(w.enviados) ?? 0} por WhatsApp</dd></div>
+      ${d.carta ? `<div class="largo"><dt>Carta</dt><dd>${esc(d.carta)}</dd></div>` : ""}
+      ${d.obs ? `<div class="largo"><dt>Observação</dt><dd>${esc(d.obs)}</dd></div>` : ""}
+    </dl>
+    ${state.podeEditar ? `<div class="acoes"><button type="button" class="btn" data-ir="fid-editar:${esc(d.id)}"><i class="ti ti-pencil" aria-hidden="true"></i>Editar disparo e números</button><span class="note">Os números mudam com o tempo: volte aqui para atualizar as respostas e os orçamentos.</span></div>` : ""}
+    ${secao("h-res", "ti-chart-bar", "Resultado", "E-mail e WhatsApp juntos", kpis(mm.geral))}
+    ${painel("h-fg", "ti-filter", "Funil do disparo", "E-mail e WhatsApp juntos", funil(fidEtapas(mm.geral), "var(--f-fid)"))}
+    ${secao("h-fun", "ti-mail", "Funil do e-mail", "Copie da tela de Analytics do BillionMail: o Success e os percentuais, como aparecem", funilEmail(d, mm.email))}
+    ${secao("h-can", "ti-arrows-split-2", "E-mail × WhatsApp", "Percentuais sobre os enviados em cada canal", canais(mm))}
+  </div>`;
+}
+/* Novo disparo / editar: tudo o que o disparo lançado no painel guarda. */
+function telaFidForm(id, visaoPre) {
+  const novo = !id;
+  const pastas = [...state.pastas].sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99));
+  const d = novo ? { manual: true, visao: visaoPre === "necessidade" ? "necessidade" : "produto", pasta: pastas[0]?.id || "" } : state.disparos.find((x) => x.id === id);
+  if (!d) { cab("Disparo", ""); return `<div class="empty">Este disparo não existe mais. <button type="button" class="linkbtn" data-ir="inicio">Voltar para a Fidelização</button></div>`; }
+  if (!d.manual) { cab(d.nome, ""); return `<div class="empty">Este disparo tem a lista de leads: o envio, as respostas e os orçamentos são marcados na ficha dele. <button type="button" class="linkbtn" data-ir="disparo:${esc(d.id)}">Abrir o disparo</button></div>`; }
+  const vs = visaoDe(d);
+  if (novo) d.nome = `Disparo ${state.disparos.filter((x) => x.pasta === d.pasta).length + 1}`;
+  cab(novo ? "Novo disparo" : `Editar · ${d.nome}`, novo ? "Registre o disparo e os números. Se ele ainda não saiu, lance só a data e a base; os números entram depois, em Editar disparo." : "Atualize a base, os números do BillionMail e o retorno de cada canal.");
+  const bm = d.bm || {}; const e = d.retorno?.email || {}; const w = d.retorno?.whatsapp || {};
+  const dis = state.podeEditar ? "" : " disabled"; const nI = ' min="0" step="1" inputmode="numeric"';
+  const f = (k, rot, tipo, val, extra = "", cls = "") => `<label class="campo${cls}" for="f_${k}">${rot}<input type="${tipo}" id="f_${k}" value="${esc(val ?? "")}"${extra}${dis}></label>`;
+  const pc = (k, rot) => f(k, rot, "text", bm[k] != null ? br(bm[k]) : "", ' inputmode="decimal" placeholder="ex.: 98,5"');
+  const segs = [...new Set([...state.pastas.flatMap((x) => (x.necessidade || []).map((g) => (g.geral ? "Qualquer segmento" : g.segmento))), ...state.disparos.map((x) => x.segmento)].filter(Boolean))].sort();
+  return `<form id="fidForm" class="form" data-id="${esc(id || "")}" novalidate>
+    <fieldset><legend>Disparo</legend><div class="campos">
+      <label class="campo" for="f_visao">Visão<select id="f_visao"${dis}>${Object.entries(VISOES).map(([k, v]) => `<option value="${k}"${vs === k ? " selected" : ""}>${v.nome}</option>`).join("")}</select></label>
+      <label class="campo" for="f_pasta">Produto<select id="f_pasta"${dis}>${pastas.map((x) => `<option value="${esc(x.id)}"${d.pasta === x.id ? " selected" : ""}>${esc(x.nome)}</option>`).join("")}</select></label>
+      <label class="campo" for="f_segmento" id="campoSeg"${vs === "necessidade" ? "" : " hidden"}>Segmento<input type="text" id="f_segmento" list="fidSegList" value="${esc(d.segmento || "")}" autocomplete="off" placeholder="ex.: Bebidas"${dis}></label>
+      <datalist id="fidSegList">${segs.map((x) => `<option value="${esc(x)}"></option>`).join("")}</datalist>
+      ${f("nome", "Nome do disparo", "text", d.nome, ' required autocomplete="off"')}
+      ${f("data", "Data do disparo", "date", d.data)}
+      ${f("remetente", "Remetente", "text", d.remetente)}
+      ${f("tamanho_base", "Tamanho da base", "number", d.tamanho_base, nI)}
+      ${f("base_limpa_email", "Base limpa (e-mails)", "number", d.base_limpa_email, nI)}
+      ${f("carta", "Carta ou assunto do e-mail", "text", d.carta, "", " largo")}
+      <label class="campo largo" for="f_obs">Observação<textarea id="f_obs" rows="2"${dis}>${esc(d.obs || "")}</textarea></label>
+    </div></fieldset>
+    <fieldset><legend>E-mail · BillionMail</legend><p class="note" style="margin:0">Copie da tela de Analytics: o Success em quantidade e os percentuais como aparecem (aceita vírgula). Se o e-mail ainda não saiu, deixe em branco.</p><div class="campos">
+      ${f("enviados", "Enviados (Success)", "number", bm.enviados, nI)}
+      ${pc("delivered_pct", "Delivered %")}${pc("opened_pct", "Opened % (lido)")}${pc("clicked_pct", "Clicked %")}${pc("bounced_pct", "Bounced %")}
+    </div></fieldset>
+    <fieldset><legend>Retorno do e-mail</legend><div class="campos">
+      ${f("e_respostas", "Respostas", "number", e.respostas, nI)}${f("e_interessados", "Interessados", "number", e.interessados, nI)}
+      ${f("e_pedidos", "Orçamentos gerados", "number", e.pedidos, nI)}${f("e_sairam", "Pediram para sair", "number", e.sairam, nI)}
+    </div></fieldset>
+    <fieldset><legend>WhatsApp</legend><p class="note" style="margin:0">Se o disparo não teve WhatsApp, deixe em branco.</p><div class="campos">
+      ${f("w_total", "Leads separados para o WhatsApp", "number", w.total, nI)}${f("w_enviados", "Enviados", "number", w.enviados, nI)}
+      ${f("w_respostas", "Respostas", "number", w.respostas, nI)}${f("w_interessados", "Interessados", "number", w.interessados, nI)}
+      ${f("w_pedidos", "Orçamentos gerados", "number", w.pedidos, nI)}${f("w_sairam", "Pediram para sair", "number", w.sairam, nI)}
+    </div></fieldset>
+    <div class="acoes">
+      ${state.podeEditar ? `<button type="submit" class="btn" id="fidSalvar"><i class="ti ti-device-floppy" aria-hidden="true"></i>${novo ? "Registrar disparo" : "Salvar alterações"}</button>` : ""}
+      <button type="button" class="btn secundario" data-ir="${novo ? `visao:${vs}` : `disparo:${esc(id)}`}">Voltar</button>
+      ${!novo && state.podeEditar ? `<span id="fidApagarBox"><button type="button" class="btn secundario" data-fid-apagar="${esc(id)}">Excluir disparo</button></span>` : ""}
+      <span class="status-line" id="formMsg" role="status"></span>
+    </div>
+  </form>`;
+}
+async function salvarFid(form) {
+  if (!db || !state.podeEditar) return;
+  const msg = $("formMsg"); const aviso = (t, e) => { msg.textContent = t; msg.classList.toggle("err", !!e); };
+  const v = (k) => ($("f_" + k)?.value ?? "").trim();
+  const n = (k) => { const x = v(k); return x === "" || isNaN(+x) ? null : Math.max(0, Math.round(+x)); };
+  const pc = (k) => { const x = v(k).replace("%", "").replace(",", "."); return x === "" || isNaN(+x) ? null : Math.min(100, Math.max(0, Math.round(+x * 100) / 100)); };
+  const visao = v("visao") === "necessidade" ? "necessidade" : "produto";
+  if (!v("pasta")) return aviso("Escolha o produto do disparo.", true);
+  if (!v("nome")) { aviso("Dê um nome ao disparo (ex.: Disparo 2).", true); $("f_nome").focus(); return; }
+  if (visao === "necessidade" && !v("segmento")) { aviso("Informe o segmento da base.", true); $("f_segmento").focus(); return; }
+  const agora = new Date().toISOString();
+  const dados = {
+    manual: true, visao, pasta: v("pasta"), segmento: visao === "necessidade" ? v("segmento") : "", nome: v("nome"), data: v("data"),
+    remetente: v("remetente"), carta: v("carta"), obs: v("obs"), tamanho_base: n("tamanho_base"), base_limpa_email: n("base_limpa_email"),
+    bm: { enviados: n("enviados"), delivered_pct: pc("delivered_pct"), opened_pct: pc("opened_pct"), clicked_pct: pc("clicked_pct"), bounced_pct: pc("bounced_pct") },
+    retorno: {
+      email: { respostas: n("e_respostas"), interessados: n("e_interessados"), pedidos: n("e_pedidos"), sairam: n("e_sairam") },
+      whatsapp: { total: n("w_total"), enviados: n("w_enviados"), respostas: n("w_respostas"), interessados: n("w_interessados"), pedidos: n("w_pedidos"), sairam: n("w_sairam") },
+    },
+    atualizado_em: agora,
+  };
+  const btn = $("fidSalvar"); if (btn) btn.disabled = true;
+  try {
+    let did = form.dataset.id;
+    if (did) await db.collection("disparos").doc(did).update(dados);
+    else { did = "fd-" + Date.now().toString(36); await db.collection("disparos").doc(did).set({ ...dados, criado_em: agora }); }
+    const ex = state.disparos.find((x) => x.id === did);
+    if (ex) Object.assign(ex, dados); else state.disparos.push({ id: did, ...dados, criado_em: agora });
+    ir({ tipo: "disparo", id: did });
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    aviso(semPermissao(e) ? "Você tem acesso só de leitura a este painel." : "Não foi possível salvar. Tente de novo em alguns segundos.", true);
+  }
+}
+async function apagarFid(id, btn) {
+  const d = state.disparos.find((x) => x.id === id); if (!d || !d.manual || !db) return;
+  btn.disabled = true;
+  try { await db.collection("disparos").doc(id).delete(); state.disparos = state.disparos.filter((x) => x.id !== id); ir({ tipo: "visao", id: visaoDe(d) }); }
+  catch (e) { btn.disabled = false; const m = $("formMsg"); if (m) { m.textContent = "Não foi possível excluir agora."; m.classList.add("err"); } }
+}
+
 /* Funil do e-mail: os campos seguem a tela de Analytics do BillionMail (Success em quantidade; Delivered, Opened, Clicked e Bounced em %). */
 function funilBm(d) {
   const bm = d.bm || {}; const env = +bm.enviados || 0;
@@ -370,7 +512,7 @@ function funilEmail(d, me) {
     ["Abertos", campo("opened_pct", true), n(f.abertos), "Opened · é o % lido"],
     ["Cliques", campo("clicked_pct", true), n(f.cliques), "Clicked"],
     ["Bounce", campo("bounced_pct", true), n(f.bounces), "Bounced · e-mail que voltou"],
-    ["Respostas", "", me.respostas, ent ? `Marcadas na lista de leads · ${br(pct(me.respostas, ent))}% dos entregues` : "Marcadas na lista de leads"],
+    ["Respostas", "", me.respostas, (d.manual ? "Lançadas em Editar disparo" : "Marcadas na lista de leads") + (ent ? ` · ${br(pct(me.respostas, ent))}% dos entregues` : "")],
     ["Orçamentos", "", me.pedidos, [ent ? `${br(pct(me.pedidos, ent))}% dos entregues` : "", me.respostas ? `${br(pct(me.pedidos, me.respostas))}% das respostas` : ""].filter(Boolean).join(" · ") || "Orçamentos gerados pelas respostas"],
   ];
   const visual = f.env ? `<div class="painel">${funil([
@@ -1000,6 +1142,7 @@ function render() {
   const r = state.rota;
   $("view").innerHTML =
     r.tipo === "pasta" ? telaPasta(r.id) : r.tipo === "disparo" ? telaDisparo(r.id)
+    : r.tipo === "fid-novo" ? telaFidForm(null, r.id) : r.tipo === "fid-editar" ? telaFidForm(r.id)
     : r.tipo === "institucional" ? telaInstitucional() : r.tipo === "inst" ? telaInstForm(r.id) : r.tipo === "inst-novo" ? telaInstForm(null)
     : r.tipo === "coldmail" ? telaColdmail() : r.tipo === "cmf" ? telaCmFornecedor(r.id) : r.tipo === "cm" ? telaCmForm(r.id) : r.tipo === "cm-novo" ? telaCmForm(null, r.id)
     : r.tipo === "coldzap" ? telaColdzap() : r.tipo === "czd" ? telaCzDisparo(r.id)
@@ -1060,9 +1203,9 @@ function totaisFrentes() {
 /* O que falta enviar, lançar ou conferir, calculado a partir dos dados. Alertas (números que não fecham) vêm primeiro. */
 function pendencias() {
   const p = [];
-  state.disparos.filter((d) => !d.enviado_em).forEach((d) => { const pa = state.pastas.find((x) => x.id === d.pasta);
+  state.disparos.filter((d) => !d.manual && !d.enviado_em).forEach((d) => { const pa = state.pastas.find((x) => x.id === d.pasta);
     p.push({ ic: "ti-hourglass", t: `${pa ? pa.nome + " · " : ""}${d.nome}: aguardando envio`, s: `${metricasDisparo(d).geral.total} leads preparados em ${fmtData(d.data)}`, ir: `disparo:${d.id}` }); });
-  state.disparos.filter((d) => d.enviado_em && !(d.bm && +d.bm.enviados)).forEach((d) =>
+  state.disparos.filter((d) => (d.manual ? !!dataEnvio(d) && !!num(d.base_limpa_email) : d.enviado_em) && !(d.bm && +d.bm.enviados)).forEach((d) =>
     p.push({ ic: "ti-mail", t: `${d.nome}: lançar os números do BillionMail`, s: "Enviados, entregues, abertos, cliques e bounce", ir: `disparo:${d.id}` }));
   state.cz.forEach((d) => { const m = czMetricas(d);
     const sz = czSituacao(d, m);
@@ -1084,6 +1227,7 @@ function pendencias() {
 function atividades() {
   const ev = [];
   state.disparos.forEach((d) => { const pa = state.pastas.find((x) => x.id === d.pasta)?.nome || "Fidelização";
+    if (d.manual) { if (d.data) ev.push({ data: d.data, cls: "fid", t: `${pa} · ${d.nome} ${d.data > hojeLocal() ? "programado" : "enviado"}`, s: `Fidelização · ${VISOES[visaoDe(d)].nome.toLowerCase()}${d.segmento ? " · " + d.segmento : ""}`, ir: `disparo:${d.id}` }); return; }
     if (d.enviado_em) ev.push({ data: d.enviado_em, cls: "fid", t: `${pa} · ${d.nome} enviado`, s: `Fidelização · ${metricasDisparo(d).geral.total} leads`, ir: `disparo:${d.id}` });
     if (d.data) ev.push({ data: d.data, cls: "fid", t: `${pa} · ${d.nome} preparado`, s: `Fidelização · ${metricasDisparo(d).geral.total} leads`, ir: `disparo:${d.id}` }); });
   state.cz.forEach((d) => { const m = czMetricas(d); const k = czSituacao(d, m).k;
@@ -1220,6 +1364,7 @@ function atualizar() {
   const r = state.rota; const a = document.activeElement?.id || "";
   if ((r.tipo === "inst" || r.tipo === "inst-novo") && $("instForm")) return;
   if ((r.tipo === "cm" || r.tipo === "cm-novo") && $("cmForm")) return;
+  if ((r.tipo === "fid-novo" || r.tipo === "fid-editar") && $("fidForm")) return;
   if (a.startsWith("obs-") || a.startsWith("czobs-")) return;
   if (a === "busca") return renderLeadsSomente();
   if (a === "czbusca") return renderCzLeads();
@@ -1306,7 +1451,7 @@ function aba(wb, nome, linhas, larguras) {
 
 async function relatorioMensal(btn) {
   const mes = $("mesRel").value; btn.disabled = true;
-  const doMes = state.disparos.filter((d) => (d.enviado_em || "").startsWith(mes));
+  const doMes = state.disparos.filter((d) => dataEnvio(d).startsWith(mes));
   const mm = doMes.map((d) => ({ d, m: metricasDisparo(d) }));
   const tot = { geral: somar(mm.map((x) => x.m.geral)), email: somar(mm.map((x) => x.m.email)), whatsapp: somar(mm.map((x) => x.m.whatsapp)) };
   const resp = state.leads.filter((l) => (l.respondido_em || "").startsWith(mes));
@@ -1328,7 +1473,7 @@ async function relatorioMensal(btn) {
   ], [44, 14, 14, 12, 14, 12, 18, 16, 16, 12]);
   aba(wb, "Por disparo", [["Pasta", "Disparo", "Visão", "Enviado em", "Canal", ...CAB_M],
     ...mm.flatMap(({ d, m }) => { const p = state.pastas.find((x) => x.id === d.pasta)?.nome || "";
-      const v = VISOES[visaoDe(d)].nome; const e = fmtData(d.enviado_em);
+      const v = VISOES[visaoDe(d)].nome; const e = fmtData(dataEnvio(d));
       return [[p, d.nome, v, e, "Total", ...linhaM(m.geral)], [p, d.nome, v, e, "E-mail", ...linhaM(m.email)], [p, d.nome, v, e, "WhatsApp", ...linhaM(m.whatsapp)]]; })],
     [16, 16, 16, 12, 10, 10, 12, 10, 12, 10, 16, 14]);
   if (state.leadsOk) aba(wb, "Respostas do mês", [["Data da resposta", "Pasta", "Disparo", "Empresa", "Nome", "E-mail", "Canal", "Resposta", "Orçamento gerado", "Observação"],
@@ -1460,6 +1605,11 @@ document.addEventListener("click", (ev) => {
   const zb = ev.target.closest("[data-czbaixar]"); if (zb) return baixarCz(zb.dataset.czbaixar, zb);
   const ro = ev.target.closest("[data-rolar]");
   if (ro) { const alvo = document.getElementById(ro.dataset.rolar); if (alvo) alvo.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }); return; }
+  const fa = ev.target.closest("[data-fid-apagar]");
+  if (fa) { $("fidApagarBox").innerHTML = `<button type="button" class="btn perigo" data-fid-apagar-ok="${esc(fa.dataset.fidApagar)}">Confirmar exclusão</button> <button type="button" class="btn secundario" data-fid-apagar-nao="${esc(fa.dataset.fidApagar)}">Manter</button>`; return; }
+  const fan = ev.target.closest("[data-fid-apagar-nao]");
+  if (fan) { $("fidApagarBox").innerHTML = `<button type="button" class="btn secundario" data-fid-apagar="${esc(fan.dataset.fidApagarNao)}">Excluir disparo</button>`; return; }
+  const fao = ev.target.closest("[data-fid-apagar-ok]"); if (fao) return apagarFid(fao.dataset.fidApagarOk, fao);
   const ca = ev.target.closest("[data-cm-apagar]");
   if (ca) { $("cmApagarBox").innerHTML = `<button type="button" class="btn perigo" data-cm-apagar-ok="${esc(ca.dataset.cmApagar)}">Confirmar exclusão</button> <button type="button" class="btn secundario" data-cm-apagar-nao="${esc(ca.dataset.cmApagar)}">Manter</button>`; return; }
   const can = ev.target.closest("[data-cm-apagar-nao]");
@@ -1474,7 +1624,7 @@ document.addEventListener("click", (ev) => {
   const i = b.dataset.ir.indexOf(":");
   ir(i < 0 ? { tipo: b.dataset.ir } : { tipo: b.dataset.ir.slice(0, i), id: b.dataset.ir.slice(i + 1) });
 });
-document.addEventListener("submit", (ev) => { if (ev.target.id === "instForm") { ev.preventDefault(); salvarInst(ev.target); } if (ev.target.id === "cmForm") { ev.preventDefault(); salvarCm(ev.target); } });
+document.addEventListener("submit", (ev) => { if (ev.target.id === "instForm") { ev.preventDefault(); salvarInst(ev.target); } if (ev.target.id === "cmForm") { ev.preventDefault(); salvarCm(ev.target); } if (ev.target.id === "fidForm") { ev.preventDefault(); salvarFid(ev.target); } });
 document.addEventListener("toggle", (ev) => { if (ev.target.id === "leadsDet") state.leadsAberto = ev.target.open; }, true);
 document.addEventListener("input", (ev) => {
   if (ev.target.id === "busca") { state.busca = ev.target.value; renderLeadsSomente(); }
@@ -1491,6 +1641,7 @@ document.addEventListener("change", (ev) => {
   if (el.id === "fidSelTodos" || el.id === "fidSelTh") { fidWhats(fidFiltrados(state.rota.id)).forEach((x) => (el.checked ? state.fidSel.add(x) : state.fidSel.delete(x))); return atualizarFidSel(); }
   if (el.dataset.fidsel) { if (el.checked) state.fidSel.add(el.dataset.fidsel); else state.fidSel.delete(el.dataset.fidsel); return atualizarFidSel(); }
   if (el.id === "instMes") { state.instMes = el.value; return render(); }
+  if (el.id === "f_visao") { const c = $("campoSeg"); if (c) c.hidden = el.value !== "necessidade"; return; }
   if (el.dataset.bm) return salvarBm(el);
   const trz = el.closest("tr[data-cz]");
   if (trz && el.dataset.cf && el.dataset.cf !== "obs") {
