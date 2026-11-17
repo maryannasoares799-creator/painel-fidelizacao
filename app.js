@@ -1014,19 +1014,34 @@ function cmKpis(s, nForn) {
 const linhaCm = (d) => { const s = instSomar([d]); const temNum = temMetrica(d); const tr = (v) => (temNum ? v : "—");
   return `<td class="num">${num(d.base_limpa) ?? "—"}</td><td class="num">${tr(s.entregues)}</td><td class="num">${tr(br(pct(s.abertos, s.entregues)) + "%")}</td><td class="num">${tr(s.cliques)}</td><td class="num">${num(d.respostas) ?? "—"}</td><td class="num">${num(d.orcamentos) ?? "—"}</td>`; };
 
-const cmCardForn = (f) => { const hojeE = f.envios.find((d) => cmSituacao(d).k === "hoje"); const sit = hojeE ? cmSituacao(hojeE) : f.programados.length ? cmSituacao(f.programados[0]) : f.semMetricas.length ? cmSituacao(f.semMetricas[0]) : cmSituacao(f.envios[f.envios.length - 1]);
+/* Situação do fornecedor: o envio de hoje, o próximo programado, o que falta lançar ou o último enviado. */
+const cmSitForn = (f) => { const hojeE = f.envios.find((d) => cmSituacao(d).k === "hoje"); return hojeE ? cmSituacao(hojeE) : f.programados.length ? cmSituacao(f.programados[0]) : f.semMetricas.length ? cmSituacao(f.semMetricas[0]) : cmSituacao(f.envios[f.envios.length - 1]); };
+const cmCardForn = (f) => { const sit = cmSitForn(f);
     return `<button type="button" class="card cm" data-ir="cmf:${esc(f.k)}">
       <div class="top"><div><div class="nome">${esc(f.empresa || "Sem nome")}</div><div class="sub">${esc(f.chave || "sem ID")}${f.produto ? " · " + esc(f.produto) : ""}</div></div><span class="ico-frente" aria-hidden="true"><i class="ti ti-mail-forward"></i></span></div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">${sit.chip}${f.envios.length > 1 ? `<span class="chip neutro sem-ponto">${f.envios.length} envios (${f.envios.map((d) => d.base_ab === "A" || d.base_ab === "B" ? d.base_ab : "inteira").join(" e ")})</span>` : ""}</div>
       <div class="stats"><div class="stat"><b>${f.s.limpa || f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0)}</b><span>base limpa</span></div><div class="stat"><b>${f.s.entregues ? br(pct(f.s.abertos, f.s.entregues)) + "%" : "—"}</b><span>lido</span></div><div class="stat"><b>${f.envios.some((d) => num(d.respostas) != null) ? f.resp : "—"}/${f.envios.some((d) => num(d.orcamentos) != null) ? f.orc : "—"}</b><span>respostas/orç.</span></div></div>
       <span class="go">Abrir fornecedor <i class="ti ti-arrow-right" aria-hidden="true"></i></span></button>`; };
-const cmLinhaForn = (f) => { const hojeE = f.envios.find((d) => cmSituacao(d).k === "hoje"); const sit = hojeE ? cmSituacao(hojeE) : f.programados.length ? cmSituacao(f.programados[0]) : f.semMetricas.length ? cmSituacao(f.semMetricas[0]) : cmSituacao(f.envios[f.envios.length - 1]);
-    return fileira("cm", `cmf:${esc(f.k)}`, esc(f.empresa || "Sem nome"), `${esc(f.chave || "sem ID")}${f.produto ? " · " + esc(f.produto) : ""}`,
-      `${sit.chip}${f.envios.length > 1 ? `<span class="chip neutro sem-ponto">${f.envios.length} envios</span>` : ""}`,
-      [[f.s.limpa || f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0), "base limpa"], [f.s.entregues ? br(pct(f.s.abertos, f.s.entregues)) + "%" : "—", "lido"],
-       [`${f.envios.some((d) => num(d.respostas) != null) ? f.resp : "—"}/${f.envios.some((d) => num(d.orcamentos) != null) ? f.orc : "—"}`, "resp./orç."]]); };
-/* Busca do Cold mail: fornecedor, ID do cliente, produto, solicitante ou assunto, sem diferença de acento ou maiúscula.
-   Filtra a lista de fornecedores e a tabela "Todos os envios"; os números do topo continuam sendo de todos. */
+/* Modo lista: uma tabela com tudo, uma linha por fornecedor. Quem teve envios A e B aparece somado; cada envio fica na ficha.
+   A situação é curta porque a data já está na primeira coluna. */
+const CM_CURTO = { ok: ["ok", "Enviado"], sem_metricas: ["neutro", "Sem números"], programado: ["info", "Programado"], hoje: ["info", "Disparo hoje"], sem_data: ["neutro", "Sem data"] };
+const chipCmCurto = (k) => { const [c, t] = CM_CURTO[k] || ["neutro", k]; return `<span class="chip ${c}">${t}</span>`; };
+function cmTabelaForn(forn) {
+  const linha = (f) => { const sit = cmSitForn(f); const tem = f.s.env > 0; const tr = (v) => (tem ? v : "—");
+    const datas = [...new Set(f.envios.map((d) => d.data_disparo).filter(Boolean))].sort();
+    const quando = datas.length > 1 ? datas.map((x) => fmtData(x).slice(0, 5)).join(" e ") : datas.length ? fmtData(datas[0]) : "Sem data";
+    const limpa = f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0);
+    return `<tr class="clicavel" data-ir="cmf:${esc(f.k)}">
+      <td class="data">${quando}${f.envios.length > 1 ? `<small>${f.envios.length} envios (${f.envios.map((d) => (d.base_ab === "A" || d.base_ab === "B" ? d.base_ab : "inteira")).join(" e ")})</small>` : ""}</td>
+      <td><div class="who"><button type="button" class="linkbtn forn" data-ir="cmf:${esc(f.k)}">${esc(f.empresa || "Sem nome")}</button><small title="${esc(f.produto || "")}">${esc(f.chave || "sem ID")}${f.produto ? " · " + esc(f.produto) : ""}</small></div></td>
+      <td>${chipCmCurto(sit.k)}</td>
+      <td class="num">${limpa || "—"}</td><td class="num">${tr(f.s.entregues)}</td><td class="num">${tr(br(pct(f.s.abertos, f.s.entregues)) + "%")}</td><td class="num">${tr(f.s.cliques)}</td>
+      <td class="num">${f.envios.some((d) => num(d.respostas) != null) ? f.resp : "—"}</td><td class="num">${f.envios.some((d) => num(d.orcamentos) != null) ? f.orc : "—"}</td></tr>`; };
+  return `<div class="tbl-wrap"><table class="tabela-forn"><thead><tr><th>Disparo em</th><th>Fornecedor</th><th>Situação</th><th class="num">Base limpa</th><th class="num">Entregues</th><th class="num">% lido</th><th class="num">Cliques</th><th class="num">Respostas</th><th class="num">Orçamentos</th></tr></thead>
+    <tbody>${forn.map(linha).join("")}</tbody></table></div>`;
+}
+/* Busca do Cold mail: fornecedor, ID do cliente, produto, solicitante, assunto ou data, sem diferença de acento ou maiúscula.
+   Filtra a lista de fornecedores; os números do topo continuam sendo de todos. */
 const semAcento = (t) => String(t ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 const bateBusca = (q, vals) => { const x = semAcento(q); return !x || vals.some((v) => semAcento(v).includes(x)); };
 const barraBusca = (id, valor, ph, contagem) => `<div class="busca-barra"><label class="busca-campo" for="${id}"><i class="ti ti-search" aria-hidden="true"></i><input type="search" id="${id}" value="${esc(valor)}" placeholder="${ph}" aria-label="${ph}" autocomplete="off"></label><span class="note" id="${id}Cont" role="status">${contagem}</span></div>`;
@@ -1035,20 +1050,13 @@ function cmFiltrados() { const todos = cmFornecedores(); return { todos, forn: t
 const cmContagem = ({ todos, forn }) => (state.cmBusca.trim() ? `${forn.length} de ${todos.length} fornecedor(es)` : `${todos.length} fornecedor(es) · mais recentes primeiro`);
 function cmListaHtml({ forn }) {
   if (!forn.length) return vazio("ti-search-off", "Nenhum fornecedor encontrado.", `Nada com “${esc(state.cmBusca.trim())}”. Confira o nome ou busque pelo ID do cliente.`);
-  return state.vista === "lista" ? `<div class="linhas">${forn.map(cmLinhaForn).join("")}</div>` : `<div class="grid-cards">${forn.map(cmCardForn).join("")}</div>`;
-}
-function cmEnviosHtml() {
-  const lista = state.cm.filter(cmBate).sort((a, b) => (b.data_disparo || "").localeCompare(a.data_disparo || ""));
-  if (!lista.length) return `<p class="note">Nenhum envio com “${esc(state.cmBusca.trim())}”.</p>`;
-  return `<div class="tbl-wrap"><table><thead><tr><th>Disparo em</th><th>Fornecedor</th><th>ID</th><th>Base</th><th>Situação</th><th class="num">Base limpa</th><th class="num">Entregues</th><th class="num">% lido</th><th class="num">Cliques</th><th class="num">Respostas</th><th class="num">Orçamentos</th></tr></thead>
-      <tbody>${lista.map((d) => `<tr><td><button type="button" class="linkbtn" data-ir="cmf:${esc(normChave(d.chave) || "sem-id:" + String(d.empresa || "").trim().toLowerCase())}">${d.data_disparo ? fmtData(d.data_disparo) : "Sem data"}</button></td><td>${esc(String(d.empresa || "").trim())}</td><td class="note">${esc(String(d.chave || "").replace(/\.0$/, ""))}</td><td><span class="tag ab">${esc(d.base_ab || "Inteira")}</span></td><td>${cmSituacao(d).chip}</td>${linhaCm(d)}</tr>`).join("")}</tbody></table></div>`;
+  return state.vista === "lista" ? cmTabelaForn(forn) : `<div class="grid-cards">${forn.map(cmCardForn).join("")}</div>`;
 }
 const cmBuscaBarra = (fl) => `<div class="busca-barra"><label class="busca-campo" for="cmBusca"><i class="ti ti-search" aria-hidden="true"></i><input type="search" id="cmBusca" value="${esc(state.cmBusca)}" placeholder="Buscar por fornecedor, ID do cliente ou produto" aria-label="Buscar fornecedor" autocomplete="off"></label><span class="note" id="cmContagem" role="status">${cmContagem(fl)}</span></div>`;
 /* Redesenha só a lista e a tabela, sem tirar o cursor do campo de busca. */
 function renderCmLista() {
   const l = $("cmLista"); if (!l) return render();
   const fl = cmFiltrados(); l.innerHTML = cmListaHtml(fl);
-  const e = $("cmEnvios"); if (e) e.innerHTML = cmEnviosHtml();
   const c = $("cmContagem"); if (c) c.textContent = cmContagem(fl);
 }
 
@@ -1069,7 +1077,6 @@ function telaColdmail() {
     </div>
     ${secao("h-cml", "ti-building-store", "Fornecedores", "", forn.length ? (() => { const fl = cmFiltrados(); return `${cmBuscaBarra(fl)}<div id="cmLista">${cmListaHtml(fl)}</div>`; })()
       : vazio("ti-mail-forward", "Nenhum cold mail registrado ainda.", state.podeEditar ? "Use “Novo cold mail” para lançar o primeiro." : ""), forn.length ? seletorVista() : "")}
-    ${state.cm.length ? secao("h-cme", "ti-list-details", "Todos os envios", "Uma linha por envio, como na planilha", `<div id="cmEnvios">${cmEnviosHtml()}</div>`) : ""}
   </div>`;
 }
 

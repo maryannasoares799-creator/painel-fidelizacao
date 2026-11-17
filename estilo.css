@@ -427,6 +427,18 @@ input[type="email"] { width: 100%; padding: 10px 12px; }
 @media (max-width: 860px) { .lateral-pe { display: flex; align-items: center; gap: 8px; } .tema { width: auto; padding: 6px 9px; } .tema span { display: none; } }
 
 /* ---------- Por necessidade: cartões por segmento ---------- */
+/* tabela de fornecedores (Cold mail, modo lista): a linha inteira abre o fornecedor */
+.tabela-forn tr.clicavel { cursor: pointer; }
+.tabela-forn tr.clicavel:hover td { background: var(--surface-2); }
+.tabela-forn td { vertical-align: middle; }
+.tabela-forn td.data { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tabela-forn td.data small, .tabela-forn .who small { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.tabela-forn td:nth-child(2) { min-width: 230px; max-width: 320px; }
+.tabela-forn th, .tabela-forn td { padding-left: 10px; padding-right: 10px; }
+.tabela-forn .who small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; word-break: normal; }
+.tabela-forn .chip { white-space: nowrap; }
+.tabela-forn .linkbtn.forn { font-weight: 600; color: var(--ink); text-decoration: none; padding: 0; text-align: left; }
+.tabela-forn tr.clicavel:hover .linkbtn.forn { color: var(--f-cm); }
 /* campo de busca (Cold mail) */
 .busca-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 14px; }
 .busca-campo { position: relative; display: block; flex: 1 1 300px; max-width: 520px; }
