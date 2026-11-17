@@ -114,7 +114,7 @@ function hashDe(r) {
   return r.id;
 }
 function ir(rota) {
-  state.rota = rota; state.busca = ""; state.canal = ""; state.status = ""; state.envio = ""; state.leadsAberto = false; state.czSel = new Set(); state.fidSel = new Set();
+  state.rota = rota; state.busca = ""; state.canal = ""; state.status = ""; state.envio = ""; state.leadsAberto = false; state.czSel = new Set(); state.fidSel = new Set(); state.verAnalise = false;
   try { const h = hashDe(rota); history.replaceState(null, "", h ? "#" + h : location.pathname); } catch (e) {}
   render(); window.scrollTo(0, 0);
 }
@@ -220,23 +220,29 @@ const VISOES = {
 const visaoDe = (d) => (d.visao === "necessidade" ? "necessidade" : "produto");
 const chipVisao = (d) => `<span class="chip info sem-ponto"><i class="ti ${VISOES[visaoDe(d)].ico}" aria-hidden="true" style="font-size:13px"></i>${VISOES[visaoDe(d)].nome}</span>`;
 
-/* Matriz de oferta: um nó (o que o lead cotou, ou o segmento) ligado às linhas do que oferecer. */
 /* Listas de oferta, no formato curto para o time: o que o lead cotou e o que oferecer.
-   Os números da análise (lift, quantidade de leads, período) ficam guardados na pasta, mas não aparecem no painel. */
+   Os números da análise (lift, quantidade de leads, base) ficam escondidos atrás do botão "Ver os números da análise",
+   para quem planeja o disparo. Elementos .so-analise só aparecem com o bloco aberto; .sem-analise só com ele fechado. */
 const maiuscula = (t) => { const x = String(t || "").trim(); return x ? x[0].toUpperCase() + x.slice(1) : ""; };
-const matrizProduto = (p) => (p.estrategia?.length ? `<div class="de-para">
+const rotuloAnalise = () => (state.verAnalise ? `<i class="ti ti-eye-off" aria-hidden="true"></i>Esconder os números da análise` : `<i class="ti ti-chart-dots" aria-hidden="true"></i>Ver os números da análise`);
+const barraAnalise = (legenda) => `<div class="analise-barra"><span class="note so-analise">${legenda}</span><button type="button" class="btn secundario" data-analise="1" aria-pressed="${state.verAnalise ? "true" : "false"}">${rotuloAnalise()}</button></div>`;
+const blocoOferta = (corpo) => `<div class="oferta-bloco${state.verAnalise ? " com-analise" : ""}">${corpo}</div>`;
+const matrizProduto = (p) => (p.estrategia?.length ? blocoOferta(`${barraAnalise("Por que essas ofertas: as regras e a afinidade medida no site.")}
+    ${p.estrategia_nota ? `<p class="analise-nota so-analise"><i class="ti ti-info-circle" aria-hidden="true"></i>${esc(p.estrategia_nota)}</p>` : ""}
+    <div class="de-para">
     <div class="de-para-cab" aria-hidden="true"><span>Se o lead cotou ${esc(p.nome.toLowerCase())}</span><span>Oferecer</span></div>
-    ${p.estrategia.map((e) => `<div class="de-para-linha"><b>${esc(e.linha)}</b><span>${esc(maiuscula(e.oferta))}</span></div>`).join("")}</div>` : "");
+    ${p.estrategia.map((e) => `<div class="de-para-linha"><b>${esc(e.linha)}</b><span>${esc(maiuscula(e.oferta))}${e.dado ? `<small class="so-analise">${esc(e.dado)}</small>` : ""}</span></div>`).join("")}</div>`) : "");
 function matrizNecessidade(p) {
   const grupos = p.necessidade || [];
   if (!grupos.length) return "";
   const curto = (t) => String(t || "").split(":")[0].trim();
   const igual = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
-  const card = (g) => `<article class="segmento${g.geral ? " geral" : ""}" aria-label="${esc(g.segmento)}"><div class="seg-topo"><span class="eyebrow">${g.geral ? `Quem cotou ${esc(p.nome.toLowerCase())}` : "Segmento"}</span><b>${esc(g.segmento)}</b></div>
-    <ul>${(g.itens || []).map((e) => `<li><div><b>${esc(e.linha)}</b>${e.oferta && !igual(e.oferta, e.linha) ? `<span>${esc(e.oferta)}</span>` : ""}</div></li>`).join("")}</ul>
-    ${g.evitar ? `<p class="evitar"><i class="ti ti-ban" aria-hidden="true"></i>Não oferecer: ${esc(curto(g.evitar))}</p>` : ""}</article>`;
+  const card = (g) => `<article class="segmento${g.geral ? " geral" : ""}" aria-label="${esc(g.segmento)}"><div class="seg-topo"><span class="eyebrow">${g.geral ? `Quem cotou ${esc(p.nome.toLowerCase())}` : "Segmento"}</span><b>${esc(g.segmento)}</b>${g.nota ? `<p class="note so-analise">${esc(g.nota)}</p>` : ""}</div>
+    <ul>${(g.itens || []).map((e) => `<li><div><b>${esc(e.linha)}</b>${e.oferta && !igual(e.oferta, e.linha) ? `<span>${esc(e.oferta)}</span>` : ""}${e.dado && g.geral ? `<small class="so-analise">${esc(e.dado)}</small>` : ""}</div>${e.dado && !g.geral ? `<span class="dado-seg so-analise">${esc(e.dado)}</span>` : ""}</li>`).join("")}</ul>
+    ${g.evitar ? `<p class="evitar"><i class="ti ti-ban" aria-hidden="true"></i><span class="sem-analise">Não oferecer: ${esc(curto(g.evitar))}</span><span class="so-analise">Não oferecer: ${esc(g.evitar)}</span></p>` : ""}</article>`;
   const ordem = [...grupos.filter((g) => g.geral), ...grupos.filter((g) => !g.geral)];
-  return `<div class="segmentos">${ordem.map(card).join("")}</div>`;
+  return blocoOferta(`${barraAnalise("“x” = quantas vezes mais o segmento cota o produto do que um lead qualquer do site · leads = quantos já cotaram (poucos leads pedem cautela)")}
+    <div class="segmentos">${ordem.map(card).join("")}</div>`);
 }
 /* Quem recebeu o quê: classes A, B e C dos leads do disparo e quantos ficaram fora. */
 function classesBloco(d) {
@@ -1586,6 +1592,12 @@ document.addEventListener("click", (ev) => {
   if (ev.target.closest("[data-atualizar]")) return irParaVersao(versaoNova || VERSAO);
   const vs = ev.target.closest("[data-vista]");
   if (vs) { state.vista = vs.dataset.vista === "lista" ? "lista" : "caixas"; try { localStorage.setItem(CHAVE_VISTA, state.vista); } catch (e) {} return render(); }
+  if (ev.target.closest("[data-analise]")) {
+    state.verAnalise = !state.verAnalise;
+    document.querySelectorAll(".oferta-bloco").forEach((x) => x.classList.toggle("com-analise", state.verAnalise));
+    document.querySelectorAll("[data-analise]").forEach((x) => { x.setAttribute("aria-pressed", state.verAnalise ? "true" : "false"); x.innerHTML = rotuloAnalise(); });
+    return;
+  }
   const cs = ev.target.closest("[data-cz-sel]"); if (cs) return aplicarCzSel(cs.dataset.czSel, cs);
   const fs = ev.target.closest("[data-fid-sel]"); if (fs) return aplicarFidSel(fs.dataset.fidSel === "1");
   const ee = ev.target.closest("[data-enviar-email]"); if (ee) return salvarEnvioEmail(ee.dataset.enviarEmail, ($("dataEnvio")?.value || "").trim(), ee);
