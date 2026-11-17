@@ -4,7 +4,7 @@ const BASE_AB = ["Inteira", "A", "B"];
 const state = {
   pastas: [], estrategia: null, disparos: [], leads: [], bases: {}, inst: [], cm: [], cz: [], czLeads: [], carregado: {}, czSel: new Set(), fidSel: new Set(),
   downloads: null, leadsOk: false, czOk: false, podeEditar: true, rota: { tipo: "inicio" }, vista: "caixas",
-  busca: "", canal: "", status: "", envio: "", leadsAberto: false, instMes: "", cmBusca: "", czBuscaLista: "", instBusca: "",
+  busca: "", canal: "", status: "", envio: "", leadsAberto: false, instMes: "", geralMes: "", cmBusca: "", czBuscaLista: "", instBusca: "",
 };
 let db = null; let iniciado = false;
 const $ = (id) => document.getElementById(id);
@@ -1249,12 +1249,33 @@ const GLOSSARIO = [
   ["ti-percentage", "Conversão", "Orçamentos ÷ respostas."],
   ["ti-phone-off", "Número não existe", "No ColdZap, celular que não tem WhatsApp."],
 ];
-function totaisFrentes() {
-  const f = somar(state.disparos.map((d) => metricasDisparo(d).geral));
-  const i = instSomar(state.inst);
-  const z = czSomar(state.cz.map(czMetricas)); const c = cmTotais();
-  return { f, i, c, z, enviados: f.enviados + i.env + c.env + z.enviados, respostas: f.respostas + i.respostas + c.respostas + z.respostas, orcamentos: f.pedidos + i.orcamentos + c.orcamentos + z.orcamentos };
+/* Totais das quatro frentes. Com um mês ("2026-11"), entram só os disparos que saíram naquele mês:
+   as respostas e os orçamentos contam no mês em que o disparo saiu, não no dia em que a resposta chegou. */
+function totaisFrentes(mes = "") {
+  const noMes = (dt) => !mes || String(dt || "").startsWith(mes);
+  const ds = state.disparos.filter((d) => !mes || dataEnvio(d).startsWith(mes));
+  const is = state.inst.filter((d) => noMes(d.data_disparo)); const cs = state.cm.filter((d) => noMes(d.data_disparo)); const zs = state.cz.filter((d) => noMes(d.data));
+  const f = somar(ds.map((d) => metricasDisparo(d).geral)); const i = instSomar(is);
+  const z = czSomar(zs.map(czMetricas)); const c = cmTotais(cs);
+  return { f, i, c, z, ds, is, cs, zs, enviados: f.enviados + i.env + c.env + z.enviados, respostas: f.respostas + i.respostas + c.respostas + z.respostas, orcamentos: f.pedidos + i.orcamentos + c.orcamentos + z.orcamentos };
 }
+/* Meses que têm algum disparo, do mais recente para o mais antigo. */
+function mesesGeral() {
+  const set = new Set(); const add = (dt) => { if (dt) set.add(String(dt).slice(0, 7)); };
+  state.disparos.forEach((d) => add(dataEnvio(d))); state.inst.forEach((d) => add(d.data_disparo)); state.cm.forEach((d) => add(d.data_disparo)); state.cz.forEach((d) => add(d.data));
+  return [...set].sort().reverse();
+}
+const mesAnterior = (m) => { const [y, mm] = m.split("-").map(Number); const d = new Date(y, mm - 2, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+/* Comparação com o mês anterior: diferença em número, com seta. */
+const compara = (v, ant, nomeAnt) => { const d = v - ant;
+  return `<span class="delta"><i class="ti ${d > 0 ? "ti-trending-up" : d < 0 ? "ti-trending-down" : "ti-equal"}" aria-hidden="true"></i>${d > 0 ? "+" + d : d < 0 ? d : "igual"} vs ${nomeAnt}</span>`; };
+/* As quatro frentes em uma linha cada: para quem, canal e o que medimos. */
+const RESUMO_FRENTES = [
+  ["fidelizacao", "Leads que já cotaram no site", "E-mail e WhatsApp", "Respostas, interessados e orçamentos"],
+  ["institucional", "Uma base escolhida por segmento", "E-mail", "% lido, respostas e orçamentos"],
+  ["coldmail", "Quem cotou o produto de um fornecedor", "E-mail que cita o fornecedor", "% lido, respostas e orçamentos"],
+  ["coldzap", "20 a 30 leads de cada cold mail", "WhatsApp, enviado à mão", "Enviados, respostas e orçamentos"],
+];
 /* O que falta enviar, lançar ou conferir, calculado a partir dos dados. Alertas (números que não fecham) vêm primeiro. */
 function pendencias() {
   const p = [];
@@ -1297,31 +1318,38 @@ const linhaTempo = (ev) => ev.length ? `<ol class="linha-tempo">${ev.map((e) => 
 /* ---------- Visão geral ---------- */
 function telaGeral() {
   cab("Visão geral", "");
-  const t = totaisFrentes(); const { f, i, c, z } = t; const nForn = cmFornecedores().length;
-  const nDisp = state.disparos.length + state.inst.length + state.cm.length + state.cz.length;
-  const hs = (ic, l, v, s) => `<div class="hero-stat"><span class="l"><i class="ti ${ic}" aria-hidden="true"></i>${l}</span><span class="v">${v}</span><span class="s">${s}</span></div>`;
+  const mes = state.geralMes; const meses = mesesGeral();
+  const t = totaisFrentes(mes); const { f, i, c, z } = t; const nForn = cmFornecedores(t.cs).length;
+  const nDisp = t.ds.length + t.is.length + t.cs.length + t.zs.length;
+  const ant = mes ? totaisFrentes(mesAnterior(mes)) : null; const nomeAnt = mes ? MESES[+mesAnterior(mes).slice(5) - 1] : "";
+  const nAnt = ant ? ant.ds.length + ant.is.length + ant.cs.length + ant.zs.length : 0;
+  const cmp = (v, va) => (ant ? (nAnt ? compara(v, va, nomeAnt) : `<span class="delta">sem disparos em ${nomeAnt}</span>`) : "");
+  const hs = (ic, l, v, s, extra = "") => `<div class="hero-stat"><span class="l"><i class="ti ${ic}" aria-hidden="true"></i>${l}</span><span class="v">${v}</span><span class="s">${s}</span>${extra}</div>`;
   const pend = pendencias(); const mostra = pend.slice(0, 6);
   const mini = (itens) => `<div class="mini">${itens.map(([l, v]) => `<div><b>${v}</b><span>${l}</span></div>`).join("")}</div>`;
   const frente = (k, n, itens, extra) => { const fi = FRENTES_INFO[k]; return `<section class="frente ${fi.cls}" aria-labelledby="fr-${k}">
     <div class="frente-top"><span class="ico-frente" aria-hidden="true"><i class="ti ${fi.ico}"></i></span><div><b id="fr-${k}">${fi.nome}</b><span>${fi.sub} · ${n}</span></div></div>
     ${mini(itens)}${extra || ""}
     <button type="button" class="abrir" data-ir="${fi.destino}">Abrir ${fi.nome} <i class="ti ti-arrow-right" aria-hidden="true"></i></button></section>`; };
-  const passos = PASSOS_PADRAO; /* versão curta; a página Estratégia mostra o texto completo */
   return `<div class="pilha">
+    <div class="acoes periodo">
+      <label for="geralMes" class="note" style="display:flex;gap:8px;align-items:center"><i class="ti ti-calendar-month" aria-hidden="true" style="font-size:17px"></i>Período <select id="geralMes"><option value="">Todos os meses</option>${meses.map((m) => `<option value="${m}"${mes === m ? " selected" : ""}>${nomeMes(m)}</option>`).join("")}</select></label>
+      <span class="note">${mes ? `Disparos que saíram em ${nomeMes(mes).toLowerCase()}, comparados com ${nomeAnt}. Respostas e orçamentos contam no mês do disparo.` : "Tudo desde o primeiro disparo. Escolha um mês para ver só ele e comparar com o mês anterior."}</span>
+    </div>
     <section class="hero" aria-labelledby="h-hero">
-      <div class="hero-txt"><span class="eyebrow"><i class="ti ti-activity" aria-hidden="true"></i>Growth · disparos ao vivo</span>
+      <div class="hero-txt"><span class="eyebrow"><i class="ti ti-activity" aria-hidden="true"></i>Growth · disparos ao vivo${mes ? " · " + nomeMes(mes) : ""}</span>
         <h2 id="h-hero">Reativação de leads e geração de orçamentos para os fornecedores</h2>
         <p>Acompanhamento consolidado das quatro frentes: Fidelização (leads que já cotaram), Institucional (disparos por segmento), Cold mail (carta por fornecedor) e ColdZap (WhatsApp do cold mail).</p></div>
       <div class="hero-stats">
-        ${hs("ti-stack-2", "Disparos e listas", nDisp, `${state.disparos.length} fidelização · ${state.inst.length} institucional · ${state.cm.length} cold mail · ${state.cz.length} ColdZap`)}
-        ${hs("ti-send", "Mensagens enviadas", t.enviados, "e-mail e WhatsApp somados")}
-        ${hs("ti-message-circle", "Respostas", t.respostas, `${br(pct(t.respostas, t.enviados))}% das enviadas`)}
-        ${hs("ti-file-invoice", "Orçamentos gerados", t.orcamentos, t.respostas ? `${br(pct(t.orcamentos, t.respostas))}% das respostas` : "marcados nas listas")}
+        ${hs("ti-stack-2", "Disparos e listas", nDisp, `${t.ds.length} fidelização · ${t.is.length} institucional · ${t.cs.length} cold mail · ${t.zs.length} ColdZap`, cmp(nDisp, nAnt))}
+        ${hs("ti-send", "Mensagens enviadas", t.enviados, "e-mail e WhatsApp somados", cmp(t.enviados, ant?.enviados))}
+        ${hs("ti-message-circle", "Respostas", t.respostas, `${br(pct(t.respostas, t.enviados))}% das enviadas`, cmp(t.respostas, ant?.respostas))}
+        ${hs("ti-file-invoice", "Orçamentos gerados", t.orcamentos, t.respostas ? `${br(pct(t.orcamentos, t.respostas))}% das respostas` : "marcados nas listas", cmp(t.orcamentos, ant?.orcamentos))}
       </div>
       <div class="hero-acoes"><button type="button" class="btn claro" data-ir="estrategia"><i class="ti ti-route" aria-hidden="true"></i>Entender a estratégia</button></div>
     </section>
     <div class="grade-2">
-      ${painel("h-fc", "ti-filter", "Funil consolidado", "As quatro frentes somadas", funil([
+      ${painel("h-fc", "ti-filter", "Funil consolidado", mes ? `As quatro frentes · ${nomeMes(mes)}` : "As quatro frentes somadas", funil([
         { nome: "Enviadas", icone: "ti-send", v: t.enviados }, { nome: "Respostas", icone: "ti-message-circle", v: t.respostas }, { nome: "Orçamentos", icone: "ti-file-invoice", v: t.orcamentos },
       ]) + `<div class="tbl-wrap"><table><thead><tr><th>Frente</th><th class="num">Enviadas</th><th class="num">Respostas</th><th class="num">Orçamentos</th></tr></thead><tbody>
         <tr><td><b>Fidelização</b></td><td class="num">${f.enviados}</td><td class="num">${f.respostas}</td><td class="num">${f.pedidos}</td></tr>
@@ -1332,16 +1360,18 @@ function telaGeral() {
       ${painel("h-pend", "ti-checklist", "Pendências", pend.length ? `${pend.length} item(ns)` : "", mostra.length ? `<ul class="pendencias">${mostra.map((x) => `<li class="${x.alerta ? "alerta" : ""}"><span class="pi" aria-hidden="true"><i class="ti ${x.ic}"></i></span><div><button type="button" data-ir="${esc(x.ir)}">${esc(x.t)}</button><span>${esc(x.s)}</span></div></li>`).join("")}</ul>${pend.length > mostra.length ? `<p class="note">E mais ${pend.length - mostra.length}.</p>` : ""}`
         : `<p class="note" style="display:flex;gap:8px;align-items:center"><i class="ti ti-circle-check" style="color:var(--ok);font-size:18px" aria-hidden="true"></i>Nada pendente agora.</p>`)}
     </div>
-    ${secao("h-fr", "ti-layout-columns", "As quatro frentes", "Clique numa frente para ver os disparos e marcar as respostas", `<div class="frentes">
-      ${frente("fidelizacao", `${state.disparos.length} disparo(s)`, [["Enviados", f.enviados], ["Responderam", f.respostas], ["Interessados", f.interessados], ["Orçamentos", f.pedidos]],
+    ${secao("h-fr", "ti-layout-columns", "As quatro frentes", mes ? `${nomeMes(mes)} · clique numa frente para ver os disparos` : "Clique numa frente para ver os disparos e marcar as respostas", `<div class="frentes">
+      ${frente("fidelizacao", `${t.ds.length} disparo(s)`, [["Enviados", f.enviados], ["Responderam", f.respostas], ["Interessados", f.interessados], ["Orçamentos", f.pedidos]],
         progresso([["Enviados", f.enviados, "seg-ok"], ["Aguardando envio", Math.max(0, f.total - f.enviados), "seg-neutro"]], f.total))}
-      ${frente("institucional", `${state.inst.length} disparo(s)`, [["Entregues", i.entregues], ["% lido", `${br(pct(i.abertos, i.entregues))}%`], ["Respostas", i.respostas], ["Orçamentos", i.orcamentos]])}
+      ${frente("institucional", `${t.is.length} disparo(s)`, [["Entregues", i.entregues], ["% lido", `${br(pct(i.abertos, i.entregues))}%`], ["Respostas", i.respostas], ["Orçamentos", i.orcamentos]])}
       ${frente("coldmail", `${nForn} fornecedor(es)`, [["Entregues", c.entregues], ["% lido", `${br(pct(c.abertos, c.entregues))}%`], ["Respostas", c.respostas], ["Orçamentos", c.orcamentos]])}
-      ${frente("coldzap", `${state.cz.length} lista(s)`, [["Enviados", z.enviados], ["Número não existe", z.nao_existe], ["Responderam", z.respostas], ["Orçamentos", z.orcamentos]], czProgresso(z))}
+      ${frente("coldzap", `${t.zs.length} lista(s)`, [["Enviados", z.enviados], ["Número não existe", z.nao_existe], ["Responderam", z.respostas], ["Orçamentos", z.orcamentos]], czProgresso(z))}
     </div>`)}
     <div class="grade-2 igual">
       ${painel("h-lt", "ti-timeline-event", "Linha do tempo", "Mais recentes primeiro", linhaTempo(atividades().slice(0, 8)))}
-      ${painel("h-cf", "ti-route", "Como funciona", "O caminho de cada disparo", `<ol class="pendencias">${passos.map((p, n) => `<li><span class="pi" aria-hidden="true" style="background:var(--primaria-soft);color:var(--primaria)"><i class="ti ${p.icone || "ti-point"}"></i></span><div><b>${n + 1}. ${esc(p.titulo)}</b><span>${esc(p.texto)}</span></div></li>`).join("")}</ol>
+      ${painel("h-cf", "ti-route", "Como funciona", "As quatro frentes em resumo", `<ul class="resumo-frentes">${RESUMO_FRENTES.map(([k, quem, canal, medida]) => { const fi = FRENTES_INFO[k];
+        return `<li class="${fi.cls}"><span class="pi" aria-hidden="true"><i class="ti ${fi.ico}"></i></span><div><button type="button" class="linkbtn" data-ir="${fi.destino}">${fi.nome}</button>
+          <dl><div><dt>Para quem</dt><dd>${quem}</dd></div><div><dt>Canal</dt><dd>${canal}</dd></div><div><dt>O que medimos</dt><dd>${medida}</dd></div></dl></div></li>`; }).join("")}</ul>
         <button type="button" class="btn secundario" style="justify-self:start" data-ir="estrategia"><i class="ti ti-route" aria-hidden="true"></i>Ver a estratégia completa</button>`)}
     </div>
   </div>`;
@@ -1708,6 +1738,7 @@ document.addEventListener("change", (ev) => {
   if (el.id === "fidSelTodos" || el.id === "fidSelTh") { fidWhats(fidFiltrados(state.rota.id)).forEach((x) => (el.checked ? state.fidSel.add(x) : state.fidSel.delete(x))); return atualizarFidSel(); }
   if (el.dataset.fidsel) { if (el.checked) state.fidSel.add(el.dataset.fidsel); else state.fidSel.delete(el.dataset.fidsel); return atualizarFidSel(); }
   if (el.id === "instMes") { state.instMes = el.value; return render(); }
+  if (el.id === "geralMes") { state.geralMes = el.value; return render(); }
   if (el.id === "f_visao") { const c = $("campoSeg"); if (c) c.hidden = el.value !== "necessidade"; return; }
   if (el.dataset.bm) return salvarBm(el);
   const trz = el.closest("tr[data-cz]");
