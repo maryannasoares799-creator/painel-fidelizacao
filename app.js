@@ -4,7 +4,7 @@ const BASE_AB = ["Inteira", "A", "B"];
 const state = {
   pastas: [], estrategia: null, disparos: [], leads: [], bases: {}, inst: [], cm: [], cz: [], czLeads: [], carregado: {}, czSel: new Set(), fidSel: new Set(),
   downloads: null, leadsOk: false, czOk: false, podeEditar: true, rota: { tipo: "inicio" }, vista: "caixas",
-  busca: "", canal: "", status: "", envio: "", leadsAberto: false, instMes: "",
+  busca: "", canal: "", status: "", envio: "", leadsAberto: false, instMes: "", cmBusca: "",
 };
 let db = null; let iniciado = false;
 const $ = (id) => document.getElementById(id);
@@ -114,7 +114,7 @@ function hashDe(r) {
   return r.id;
 }
 function ir(rota) {
-  state.rota = rota; state.busca = ""; state.canal = ""; state.status = ""; state.envio = ""; state.leadsAberto = false; state.czSel = new Set(); state.fidSel = new Set(); state.verAnalise = false;
+  state.rota = rota; state.busca = ""; state.canal = ""; state.status = ""; state.envio = ""; state.leadsAberto = false; state.czSel = new Set(); state.fidSel = new Set(); state.verAnalise = false; if (FRENTE(rota) !== "coldmail") state.cmBusca = "";
   try { const h = hashDe(rota); history.replaceState(null, "", h ? "#" + h : location.pathname); } catch (e) {}
   render(); window.scrollTo(0, 0);
 }
@@ -985,23 +985,48 @@ function cmKpis(s, nForn) {
 const linhaCm = (d) => { const s = instSomar([d]); const temNum = temMetrica(d); const tr = (v) => (temNum ? v : "—");
   return `<td class="num">${num(d.base_limpa) ?? "—"}</td><td class="num">${tr(s.entregues)}</td><td class="num">${tr(br(pct(s.abertos, s.entregues)) + "%")}</td><td class="num">${tr(s.cliques)}</td><td class="num">${num(d.respostas) ?? "—"}</td><td class="num">${num(d.orcamentos) ?? "—"}</td>`; };
 
+const cmCardForn = (f) => { const hojeE = f.envios.find((d) => cmSituacao(d).k === "hoje"); const sit = hojeE ? cmSituacao(hojeE) : f.programados.length ? cmSituacao(f.programados[0]) : f.semMetricas.length ? cmSituacao(f.semMetricas[0]) : cmSituacao(f.envios[f.envios.length - 1]);
+    return `<button type="button" class="card cm" data-ir="cmf:${esc(f.k)}">
+      <div class="top"><div><div class="nome">${esc(f.empresa || "Sem nome")}</div><div class="sub">${esc(f.chave || "sem ID")}${f.produto ? " · " + esc(f.produto) : ""}</div></div><span class="ico-frente" aria-hidden="true"><i class="ti ti-mail-forward"></i></span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">${sit.chip}${f.envios.length > 1 ? `<span class="chip neutro sem-ponto">${f.envios.length} envios (${f.envios.map((d) => d.base_ab === "A" || d.base_ab === "B" ? d.base_ab : "inteira").join(" e ")})</span>` : ""}</div>
+      <div class="stats"><div class="stat"><b>${f.s.limpa || f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0)}</b><span>base limpa</span></div><div class="stat"><b>${f.s.entregues ? br(pct(f.s.abertos, f.s.entregues)) + "%" : "—"}</b><span>lido</span></div><div class="stat"><b>${f.envios.some((d) => num(d.respostas) != null) ? f.resp : "—"}/${f.envios.some((d) => num(d.orcamentos) != null) ? f.orc : "—"}</b><span>respostas/orç.</span></div></div>
+      <span class="go">Abrir fornecedor <i class="ti ti-arrow-right" aria-hidden="true"></i></span></button>`; };
+const cmLinhaForn = (f) => { const hojeE = f.envios.find((d) => cmSituacao(d).k === "hoje"); const sit = hojeE ? cmSituacao(hojeE) : f.programados.length ? cmSituacao(f.programados[0]) : f.semMetricas.length ? cmSituacao(f.semMetricas[0]) : cmSituacao(f.envios[f.envios.length - 1]);
+    return fileira("cm", `cmf:${esc(f.k)}`, esc(f.empresa || "Sem nome"), `${esc(f.chave || "sem ID")}${f.produto ? " · " + esc(f.produto) : ""}`,
+      `${sit.chip}${f.envios.length > 1 ? `<span class="chip neutro sem-ponto">${f.envios.length} envios</span>` : ""}`,
+      [[f.s.limpa || f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0), "base limpa"], [f.s.entregues ? br(pct(f.s.abertos, f.s.entregues)) + "%" : "—", "lido"],
+       [`${f.envios.some((d) => num(d.respostas) != null) ? f.resp : "—"}/${f.envios.some((d) => num(d.orcamentos) != null) ? f.orc : "—"}`, "resp./orç."]]); };
+/* Busca do Cold mail: fornecedor, ID do cliente, produto, solicitante ou assunto, sem diferença de acento ou maiúscula.
+   Filtra a lista de fornecedores e a tabela "Todos os envios"; os números do topo continuam sendo de todos. */
+const semAcento = (t) => String(t ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+const cmBate = (d) => { const q = semAcento(state.cmBusca); return !q || [d.empresa, String(d.chave || "").replace(/\.0$/, ""), d.produto, d.solicitante, d.assunto].some((v) => semAcento(v).includes(q)); };
+function cmFiltrados() { const todos = cmFornecedores(); return { todos, forn: todos.filter((f) => f.envios.some(cmBate)) }; }
+const cmContagem = ({ todos, forn }) => (state.cmBusca.trim() ? `${forn.length} de ${todos.length} fornecedor(es)` : `${todos.length} fornecedor(es) · mais recentes primeiro`);
+function cmListaHtml({ forn }) {
+  if (!forn.length) return vazio("ti-search-off", "Nenhum fornecedor encontrado.", `Nada com “${esc(state.cmBusca.trim())}”. Confira o nome ou busque pelo ID do cliente.`);
+  return state.vista === "lista" ? `<div class="linhas">${forn.map(cmLinhaForn).join("")}</div>` : `<div class="grid-cards">${forn.map(cmCardForn).join("")}</div>`;
+}
+function cmEnviosHtml() {
+  const lista = state.cm.filter(cmBate).sort((a, b) => (b.data_disparo || "").localeCompare(a.data_disparo || ""));
+  if (!lista.length) return `<p class="note">Nenhum envio com “${esc(state.cmBusca.trim())}”.</p>`;
+  return `<div class="tbl-wrap"><table><thead><tr><th>Disparo em</th><th>Fornecedor</th><th>ID</th><th>Base</th><th>Situação</th><th class="num">Base limpa</th><th class="num">Entregues</th><th class="num">% lido</th><th class="num">Cliques</th><th class="num">Respostas</th><th class="num">Orçamentos</th></tr></thead>
+      <tbody>${lista.map((d) => `<tr><td><button type="button" class="linkbtn" data-ir="cmf:${esc(normChave(d.chave) || "sem-id:" + String(d.empresa || "").trim().toLowerCase())}">${d.data_disparo ? fmtData(d.data_disparo) : "Sem data"}</button></td><td>${esc(String(d.empresa || "").trim())}</td><td class="note">${esc(String(d.chave || "").replace(/\.0$/, ""))}</td><td><span class="tag ab">${esc(d.base_ab || "Inteira")}</span></td><td>${cmSituacao(d).chip}</td>${linhaCm(d)}</tr>`).join("")}</tbody></table></div>`;
+}
+const cmBuscaBarra = (fl) => `<div class="busca-barra"><label class="busca-campo" for="cmBusca"><i class="ti ti-search" aria-hidden="true"></i><input type="search" id="cmBusca" value="${esc(state.cmBusca)}" placeholder="Buscar por fornecedor, ID do cliente ou produto" aria-label="Buscar fornecedor" autocomplete="off"></label><span class="note" id="cmContagem" role="status">${cmContagem(fl)}</span></div>`;
+/* Redesenha só a lista e a tabela, sem tirar o cursor do campo de busca. */
+function renderCmLista() {
+  const l = $("cmLista"); if (!l) return render();
+  const fl = cmFiltrados(); l.innerHTML = cmListaHtml(fl);
+  const e = $("cmEnvios"); if (e) e.innerHTML = cmEnviosHtml();
+  const c = $("cmContagem"); if (c) c.textContent = cmContagem(fl);
+}
+
 function telaColdmail() {
   cab("Cold mail", "Cartas personalizadas por fornecedor, enviadas pelo BillionMail. Cada fornecedor reúne os envios da campanha (base inteira ou metades A e B); a parte da base que vai pelo WhatsApp fica no ColdZap.");
   if (!state.carregado.inst) return carregando();
   const forn = cmFornecedores(); const s = cmTotais();
   const agenda = state.cm.filter((d) => ["hoje", "programado", "sem_metricas", "sem_data"].includes(cmSituacao(d).k))
     .sort((a, b) => (a.data_disparo || "9999").localeCompare(b.data_disparo || "9999"));
-  const cardForn = (f) => { const hojeE = f.envios.find((d) => cmSituacao(d).k === "hoje"); const sit = hojeE ? cmSituacao(hojeE) : f.programados.length ? cmSituacao(f.programados[0]) : f.semMetricas.length ? cmSituacao(f.semMetricas[0]) : cmSituacao(f.envios[f.envios.length - 1]);
-    return `<button type="button" class="card cm" data-ir="cmf:${esc(f.k)}">
-      <div class="top"><div><div class="nome">${esc(f.empresa || "Sem nome")}</div><div class="sub">${esc(f.chave || "sem ID")}${f.produto ? " · " + esc(f.produto) : ""}</div></div><span class="ico-frente" aria-hidden="true"><i class="ti ti-mail-forward"></i></span></div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">${sit.chip}${f.envios.length > 1 ? `<span class="chip neutro sem-ponto">${f.envios.length} envios (${f.envios.map((d) => d.base_ab === "A" || d.base_ab === "B" ? d.base_ab : "inteira").join(" e ")})</span>` : ""}</div>
-      <div class="stats"><div class="stat"><b>${f.s.limpa || f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0)}</b><span>base limpa</span></div><div class="stat"><b>${f.s.entregues ? br(pct(f.s.abertos, f.s.entregues)) + "%" : "—"}</b><span>lido</span></div><div class="stat"><b>${f.envios.some((d) => num(d.respostas) != null) ? f.resp : "—"}/${f.envios.some((d) => num(d.orcamentos) != null) ? f.orc : "—"}</b><span>respostas/orç.</span></div></div>
-      <span class="go">Abrir fornecedor <i class="ti ti-arrow-right" aria-hidden="true"></i></span></button>`; };
-  const linhaForn = (f) => { const hojeE = f.envios.find((d) => cmSituacao(d).k === "hoje"); const sit = hojeE ? cmSituacao(hojeE) : f.programados.length ? cmSituacao(f.programados[0]) : f.semMetricas.length ? cmSituacao(f.semMetricas[0]) : cmSituacao(f.envios[f.envios.length - 1]);
-    return fileira("cm", `cmf:${esc(f.k)}`, esc(f.empresa || "Sem nome"), `${esc(f.chave || "sem ID")}${f.produto ? " · " + esc(f.produto) : ""}`,
-      `${sit.chip}${f.envios.length > 1 ? `<span class="chip neutro sem-ponto">${f.envios.length} envios</span>` : ""}`,
-      [[f.s.limpa || f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0), "base limpa"], [f.s.entregues ? br(pct(f.s.abertos, f.s.entregues)) + "%" : "—", "lido"],
-       [`${f.envios.some((d) => num(d.respostas) != null) ? f.resp : "—"}/${f.envios.some((d) => num(d.orcamentos) != null) ? f.orc : "—"}`, "resp./orç."]]); };
   return `<div class="pilha">
     <div class="acoes">${state.podeEditar ? `<button type="button" class="btn" data-ir="cm-novo"><i class="ti ti-plus" aria-hidden="true"></i>Novo cold mail</button>` : ""}<span class="note">Os números do BillionMail podem mudar: abra o fornecedor e use "Editar" para atualizar.</span></div>
     ${secao("h-cmt", "ti-chart-bar", "Resultado do e-mail", "Funil dos envios com números do BillionMail · o WhatsApp fica no ColdZap", cmKpis(s, forn.length))}
@@ -1011,10 +1036,9 @@ function telaColdmail() {
         return `<li class="${k === "sem_metricas" ? "alerta" : ""}"><span class="pi" aria-hidden="true"><i class="ti ${k === "programado" || k === "hoje" ? "ti-calendar-event" : k === "sem_data" ? "ti-calendar-off" : "ti-chart-bar-off"}"></i></span><div><button type="button" data-ir="cmf:${esc(normChave(d.chave) || "sem-id:" + String(d.empresa || "").trim().toLowerCase())}">${esc(String(d.empresa || "").trim())} · ${baseNome(d)}</button><span>${k === "hoje" ? "Disparo hoje" : k === "programado" ? `Programado para ${fmtData(d.data_disparo)}` : k === "sem_data" ? "Sem data de disparo" : `Enviado em ${fmtData(d.data_disparo)}: lançar os números do BillionMail`}</span></div></li>`; }).join("")}</ul>`
         : `<p class="note" style="display:flex;gap:8px;align-items:center"><i class="ti ti-circle-check" style="color:var(--ok);font-size:18px" aria-hidden="true"></i>Nenhum envio programado nem sem números.</p>`)}
     </div>
-    ${secao("h-cml", "ti-building-store", "Fornecedores", `${forn.length} fornecedor(es) · mais recentes primeiro`, forn.length ? (state.vista === "lista" ? `<div class="linhas">${forn.map(linhaForn).join("")}</div>` : `<div class="grid-cards">${forn.map(cardForn).join("")}</div>`)
+    ${secao("h-cml", "ti-building-store", "Fornecedores", "", forn.length ? (() => { const fl = cmFiltrados(); return `${cmBuscaBarra(fl)}<div id="cmLista">${cmListaHtml(fl)}</div>`; })()
       : vazio("ti-mail-forward", "Nenhum cold mail registrado ainda.", state.podeEditar ? "Use “Novo cold mail” para lançar o primeiro." : ""), forn.length ? seletorVista() : "")}
-    ${state.cm.length ? secao("h-cme", "ti-list-details", "Todos os envios", "Uma linha por envio, como na planilha", `<div class="tbl-wrap"><table><thead><tr><th>Disparo em</th><th>Fornecedor</th><th>ID</th><th>Base</th><th>Situação</th><th class="num">Base limpa</th><th class="num">Entregues</th><th class="num">% lido</th><th class="num">Cliques</th><th class="num">Respostas</th><th class="num">Orçamentos</th></tr></thead>
-      <tbody>${[...state.cm].sort((a, b) => (b.data_disparo || "").localeCompare(a.data_disparo || "")).map((d) => `<tr><td><button type="button" class="linkbtn" data-ir="cmf:${esc(normChave(d.chave) || "sem-id:" + String(d.empresa || "").trim().toLowerCase())}">${d.data_disparo ? fmtData(d.data_disparo) : "Sem data"}</button></td><td>${esc(String(d.empresa || "").trim())}</td><td class="note">${esc(String(d.chave || "").replace(/\.0$/, ""))}</td><td><span class="tag ab">${esc(d.base_ab || "Inteira")}</span></td><td>${cmSituacao(d).chip}</td>${linhaCm(d)}</tr>`).join("")}</tbody></table></div>`) : ""}
+    ${state.cm.length ? secao("h-cme", "ti-list-details", "Todos os envios", "Uma linha por envio, como na planilha", `<div id="cmEnvios">${cmEnviosHtml()}</div>`) : ""}
   </div>`;
 }
 
@@ -1368,6 +1392,7 @@ function atualizar() {
   if (a.startsWith("obs-") || a.startsWith("czobs-")) return;
   if (a === "busca") return renderLeadsSomente();
   if (a === "czbusca") return renderCzLeads();
+  if (a === "cmBusca") return renderCmLista();
   render();
 }
 
@@ -1635,6 +1660,7 @@ document.addEventListener("toggle", (ev) => { if (ev.target.id === "leadsDet") s
 document.addEventListener("input", (ev) => {
   if (ev.target.id === "busca") { state.busca = ev.target.value; renderLeadsSomente(); }
   if (ev.target.id === "czbusca") { state.busca = ev.target.value; renderCzLeads(); }
+  if (ev.target.id === "cmBusca") { state.cmBusca = ev.target.value; renderCmLista(); }
 });
 document.addEventListener("change", (ev) => {
   const el = ev.target;
