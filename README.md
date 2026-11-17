@@ -1,4 +1,4 @@
-# Painel de Fidelização · Soluções Industriais
+# Painel de Disparos · Growth · Soluções Industriais
 
 Painel do time de Growth com três frentes em abas:
 

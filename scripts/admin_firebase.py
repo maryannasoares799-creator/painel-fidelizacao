@@ -1,4 +1,4 @@
-"""Administração do banco do Painel de Fidelização (Firestore).
+"""Administração do banco do Painel de Disparos · Growth (Firestore).
 
 Usa a chave de acesso do Firebase (conta de serviço). A chave dá acesso total ao banco:
 guarde-a fora da pasta do repositório e nunca a envie para o GitHub.
@@ -110,7 +110,7 @@ def operador(db, acao, email=None, nome=""):
 
 
 def main():
-    p = argparse.ArgumentParser(description="Administração do banco do Painel de Fidelização")
+    p = argparse.ArgumentParser(description="Administração do banco do Painel de Disparos · Growth")
     p.add_argument("--chave", required=True, help="caminho da chave de acesso do Firebase (JSON)")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("importar").add_argument("pasta")

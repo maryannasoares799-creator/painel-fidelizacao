@@ -1784,7 +1784,7 @@ const limparUrl = () => { try { history.replaceState(null, "", location.pathname
 let assinaturas = []; let avisoLogin = "";
 const ladoLogin = () => `<div class="login-lado">
     <div class="marca"><span class="logo-redonda" role="img" aria-label="Soluções Industriais"></span><span class="sep" aria-hidden="true"></span><div><b>Growth</b><span>Disparos</span></div></div>
-    <div style="display:grid;gap:8px"><h1>Painel de Fidelização</h1><p>Os disparos do Growth em um só lugar: a estratégia, os resultados de cada frente e a marcação das respostas, ao vivo.</p></div>
+    <div style="display:grid;gap:8px"><h1>Painel de Disparos · Growth</h1><p>Os disparos do Growth em um só lugar: a estratégia, os resultados de cada frente e a marcação das respostas, ao vivo.</p></div>
     <ul>
       <li><i class="ti ti-refresh" aria-hidden="true"></i><span><b>Fidelização</b>Por produto e por necessidade</span></li>
       <li><i class="ti ti-building" aria-hidden="true"></i><span><b>Institucional</b>Cartas por segmento</span></li>
@@ -1794,7 +1794,7 @@ const ladoLogin = () => `<div class="login-lado">
 function telaLogin(msg, ok) {
   const dominio = String(window.DOMINIO_EMPRESA || "");
   document.body.classList.add("sem-menu");
-  cab("Painel de Fidelização", ""); $("abas").innerHTML = ""; $("crumbs").innerHTML = ""; $("conta").hidden = true; $("aovivo").hidden = true;
+  cab("Painel de Disparos · Growth", ""); $("abas").innerHTML = ""; $("crumbs").innerHTML = ""; $("conta").hidden = true; $("aovivo").hidden = true;
   $("view").innerHTML = `<div class="login">${ladoLogin()}
     <div class="login-form-lado">
       <div style="display:grid;gap:6px"><h2 style="font-size:20px">Entrar</h2>
@@ -1812,7 +1812,7 @@ function telaLogin(msg, ok) {
 }
 function telaConfirmarEmail(msg) {
   document.body.classList.add("sem-menu");
-  cab("Painel de Fidelização", ""); $("abas").innerHTML = ""; $("crumbs").innerHTML = ""; $("conta").hidden = true; $("aovivo").hidden = true;
+  cab("Painel de Disparos · Growth", ""); $("abas").innerHTML = ""; $("crumbs").innerHTML = ""; $("conta").hidden = true; $("aovivo").hidden = true;
   $("view").innerHTML = `<div class="login">${ladoLogin()}
     <div class="login-form-lado">
       <div style="display:grid;gap:6px"><h2 style="font-size:20px">Confirme o seu e-mail</h2>

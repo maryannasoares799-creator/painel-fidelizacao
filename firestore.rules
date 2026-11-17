@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// Regras de acesso do Painel de Fidelização.
+// Regras de acesso do Painel de Disparos (Growth).
 // - O time entra com o e-mail da empresa (link de acesso enviado por e-mail, que confirma o endereço).
 // - Quem está na coleção "operadores" (um documento por e-mail) entra mesmo com outro e-mail
 //   (por exemplo, a conta Google da dona do projeto).
