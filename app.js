@@ -1019,12 +1019,14 @@ const cmSitForn = (f) => { const hojeE = f.envios.find((d) => cmSituacao(d).k ==
 const cmCardForn = (f) => { const sit = cmSitForn(f);
     return `<button type="button" class="card cm" data-ir="cmf:${esc(f.k)}">
       <div class="top"><div><div class="nome">${esc(f.empresa || "Sem nome")}</div><div class="sub">${esc(f.chave || "sem ID")}${f.produto ? " · " + esc(f.produto) : ""}</div></div><span class="ico-frente" aria-hidden="true"><i class="ti ti-mail-forward"></i></span></div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">${sit.chip}${f.envios.length > 1 ? `<span class="chip neutro sem-ponto">${f.envios.length} envios (${f.envios.map((d) => d.base_ab === "A" || d.base_ab === "B" ? d.base_ab : "inteira").join(" e ")})</span>` : ""}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">${sit.chip}${f.envios.length > 1 ? `<span class="chip neutro sem-ponto">${f.envios.length} envios (${f.envios.map((d) => d.base_ab === "A" || d.base_ab === "B" ? d.base_ab : "inteira").join(" e ")})</span>` : `<span class="chip neutro sem-ponto">${baseNome(f.envios[0])}</span>`}</div>
       <div class="stats"><div class="stat"><b>${f.s.limpa || f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0)}</b><span>base limpa</span></div><div class="stat"><b>${f.s.entregues ? br(pct(f.s.abertos, f.s.entregues)) + "%" : "—"}</b><span>lido</span></div><div class="stat"><b>${f.envios.some((d) => num(d.respostas) != null) ? f.resp : "—"}/${f.envios.some((d) => num(d.orcamentos) != null) ? f.orc : "—"}</b><span>respostas/orç.</span></div></div>
       <span class="go">Abrir fornecedor <i class="ti ti-arrow-right" aria-hidden="true"></i></span></button>`; };
 /* Modo lista: uma tabela com tudo, uma linha por fornecedor. Quem teve envios A e B aparece somado; cada envio fica na ficha.
    A situação é curta porque a data já está na primeira coluna. */
 const CM_CURTO = { ok: ["ok", "Enviado"], sem_metricas: ["neutro", "Sem números"], programado: ["info", "Programado"], hoje: ["info", "Disparo hoje"], sem_data: ["neutro", "Sem data"] };
+/* Base de cada envio do fornecedor: inteira, metade A, metade B (ou A e B, quando foram dois envios). */
+const cmBases = (f) => f.envios.map((d) => `<span class="tag ab">${d.base_ab === "A" || d.base_ab === "B" ? d.base_ab : "Inteira"}</span>`).join(" ");
 const chipCmCurto = (k) => { const [c, t] = CM_CURTO[k] || ["neutro", k]; return `<span class="chip ${c}">${t}</span>`; };
 function cmTabelaForn(forn) {
   const linha = (f) => { const sit = cmSitForn(f); const tem = f.s.env > 0; const tr = (v) => (tem ? v : "—");
@@ -1032,12 +1034,13 @@ function cmTabelaForn(forn) {
     const quando = datas.length > 1 ? datas.map((x) => fmtData(x).slice(0, 5)).join(" e ") : datas.length ? fmtData(datas[0]) : "Sem data";
     const limpa = f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0);
     return `<tr class="clicavel" data-ir="cmf:${esc(f.k)}">
-      <td class="data">${quando}${f.envios.length > 1 ? `<small>${f.envios.length} envios (${f.envios.map((d) => (d.base_ab === "A" || d.base_ab === "B" ? d.base_ab : "inteira")).join(" e ")})</small>` : ""}</td>
+      <td class="data">${quando}${f.envios.length > 1 ? `<small>${f.envios.length} envios</small>` : ""}</td>
       <td><div class="who"><button type="button" class="linkbtn forn" data-ir="cmf:${esc(f.k)}">${esc(f.empresa || "Sem nome")}</button><small title="${esc(f.produto || "")}">${esc(f.chave || "sem ID")}${f.produto ? " · " + esc(f.produto) : ""}</small></div></td>
+      <td class="base">${cmBases(f)}</td>
       <td>${chipCmCurto(sit.k)}</td>
       <td class="num">${limpa || "—"}</td><td class="num">${tr(f.s.entregues)}</td><td class="num">${tr(br(pct(f.s.abertos, f.s.entregues)) + "%")}</td><td class="num">${tr(f.s.cliques)}</td>
       <td class="num">${f.envios.some((d) => num(d.respostas) != null) ? f.resp : "—"}</td><td class="num">${f.envios.some((d) => num(d.orcamentos) != null) ? f.orc : "—"}</td></tr>`; };
-  return `<div class="tbl-wrap"><table class="tabela-forn"><thead><tr><th>Disparo em</th><th>Fornecedor</th><th>Situação</th><th class="num">Base limpa</th><th class="num">Entregues</th><th class="num">% lido</th><th class="num">Cliques</th><th class="num">Respostas</th><th class="num">Orçamentos</th></tr></thead>
+  return `<div class="tbl-wrap"><table class="tabela-forn"><thead><tr><th>Disparo em</th><th>Fornecedor</th><th>Base</th><th>Situação</th><th class="num">Base limpa</th><th class="num">Entregues</th><th class="num">% lido</th><th class="num">Cliques</th><th class="num">Respostas</th><th class="num">Orçamentos</th></tr></thead>
     <tbody>${forn.map(linha).join("")}</tbody></table></div>`;
 }
 /* Busca do Cold mail: fornecedor, ID do cliente, produto, solicitante, assunto ou data, sem diferença de acento ou maiúscula.

@@ -433,7 +433,8 @@ input[type="email"] { width: 100%; padding: 10px 12px; }
 .tabela-forn td { vertical-align: middle; }
 .tabela-forn td.data { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tabela-forn td.data small, .tabela-forn .who small { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
-.tabela-forn td:nth-child(2) { min-width: 230px; max-width: 320px; }
+.tabela-forn td:nth-child(2) { min-width: 200px; max-width: 290px; }
+.tabela-forn td.base { white-space: nowrap; }
 .tabela-forn th, .tabela-forn td { padding-left: 10px; padding-right: 10px; }
 .tabela-forn .who small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; word-break: normal; }
 .tabela-forn .chip { white-space: nowrap; }
