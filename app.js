@@ -2,7 +2,7 @@ const STATUS = { aguardando: "Sem resposta", interessado: "Interessado", sem_int
 const ENVIO = { "": "Não enviado", enviado: "Enviado", nao_existe: "Número não existe" };
 const BASE_AB = ["Inteira", "A", "B"];
 const state = {
-  pastas: [], estrategia: null, disparos: [], leads: [], bases: {}, inst: [], cm: [], cz: [], czLeads: [], carregado: {}, czSel: new Set(),
+  pastas: [], estrategia: null, disparos: [], leads: [], bases: {}, inst: [], cm: [], cz: [], czLeads: [], carregado: {}, czSel: new Set(), fidSel: new Set(),
   downloads: null, leadsOk: false, czOk: false, podeEditar: true, rota: { tipo: "inicio" }, vista: "caixas",
   busca: "", canal: "", status: "", envio: "", leadsAberto: false, instMes: "",
 };
@@ -99,7 +99,7 @@ function hashDe(r) {
   return r.id;
 }
 function ir(rota) {
-  state.rota = rota; state.busca = ""; state.canal = ""; state.status = ""; state.envio = ""; state.leadsAberto = false; state.czSel = new Set();
+  state.rota = rota; state.busca = ""; state.canal = ""; state.status = ""; state.envio = ""; state.leadsAberto = false; state.czSel = new Set(); state.fidSel = new Set();
   try { const h = hashDe(rota); history.replaceState(null, "", h ? "#" + h : location.pathname); } catch (e) {}
   render(); window.scrollTo(0, 0);
 }
@@ -392,17 +392,62 @@ async function salvarBm(el) {
   catch (e) { el.disabled = false; el.setCustomValidity("Não foi possível salvar"); el.reportValidity(); }
 }
 
-function blocoLeads(d) {
-  if (!state.leadsOk) return `<div class="empty">A lista de leads fica visível só para quem opera os disparos.</div>`;
+/* Leads do disparo com os filtros da tela (busca, canal e resposta): WhatsApp primeiro, por dia e empresa. */
+function fidFiltrados(id) {
   const q = state.busca.trim().toLowerCase();
-  const todos = state.leads.filter((l) => l.disparo === d.id);
-  const ls = todos.filter((l) => (!state.canal || l.canal === state.canal) && (!state.status || (l.status || "aguardando") === state.status) &&
+  return state.leads.filter((l) => l.disparo === id && (!state.canal || l.canal === state.canal) && (!state.status || (l.status || "aguardando") === state.status) &&
       (!q || [l.empresa, l.nome, l.email].some((v) => (v || "").toLowerCase().includes(q))))
     .sort((a, b) => (a.canal === b.canal ? (a.dia || "").localeCompare(b.dia || "") || (a.empresa || a.nome || "").localeCompare(b.empresa || b.nome || "") : a.canal === "whatsapp" ? -1 : 1));
+}
+/* Seleção em massa: só os leads do WhatsApp têm envio lead a lead (o e-mail é marcado de uma vez no "Envio do e-mail"). */
+const fidWhats = (ls) => ls.filter((l) => l.canal === "whatsapp").map((l) => l._id);
+function barraFidSel(ls) {
+  const ws = fidWhats(ls); const n = ws.filter((id) => state.fidSel.has(id)).length;
+  return `<label class="check sel-todos"><input type="checkbox" id="fidSelTodos"${ws.length && n === ws.length ? " checked" : ""}> Selecionar todos do WhatsApp (${ws.length})</label>
+    ${n ? `<span class="note"><b>${n}</b> selecionado(s)</span>
+      <button type="button" class="btn" data-fid-sel="1"><i class="ti ti-send" aria-hidden="true"></i>Marcar como enviados</button>
+      <button type="button" class="btn secundario" data-fid-sel="0"><i class="ti ti-arrow-back-up" aria-hidden="true"></i>Não enviado</button>`
+      : `<span class="note">Marque os leads do WhatsApp na primeira coluna, ou selecione todos, para marcar o envio de uma vez. O e-mail é marcado no Envio do e-mail, no topo da página.</span>`}`;
+}
+function atualizarFidSel() {
+  const r = state.rota; if (r.tipo !== "disparo") return;
+  const ls = fidFiltrados(r.id); const ws = fidWhats(ls); const n = ws.filter((id) => state.fidSel.has(id)).length;
+  const bar = $("fidSelBar"); if (bar) bar.innerHTML = barraFidSel(ls);
+  ["fidSelTh", "fidSelTodos"].forEach((k) => { const c = $(k); if (c) { c.checked = ws.length > 0 && n === ws.length; c.indeterminate = n > 0 && n < ws.length; } });
+  document.querySelectorAll("[data-fidsel]").forEach((c) => { c.checked = state.fidSel.has(c.dataset.fidsel); });
+}
+async function aplicarFidSel(enviado) {
+  const r = state.rota; if (!db || r.tipo !== "disparo") return;
+  const id = r.id;
+  const alvo = fidFiltrados(id).filter((l) => l.canal === "whatsapp" && state.fidSel.has(l._id) && !!l.enviado !== enviado);
+  if (!alvo.length) { state.fidSel.clear(); renderLeadsSomente(); return avisar("Os leads selecionados já estavam assim."); }
+  document.querySelectorAll("[data-fid-sel]").forEach((b) => { b.disabled = true; });
+  const agora = new Date().toISOString();
+  try {
+    const lote = db.batch();
+    alvo.forEach((l) => lote.update(db.collection("leads").doc(l._id), { enviado, enviado_em: enviado ? agora : "", atualizado_em: agora }));
+    await lote.commit();
+    alvo.forEach((l) => Object.assign(l, { enviado, enviado_em: enviado ? agora : "" }));
+    const d = state.disparos.find((x) => x.id === id);
+    if (d) { try { await db.collection("disparos").doc(id).update({ metricas: metricasDisparo(d) }); } catch (e) {} }
+    state.fidSel.clear(); render(); avisar(`${alvo.length} lead(s) do WhatsApp marcados como ${enviado ? "enviados" : "não enviados"}.`);
+  } catch (e) {
+    document.querySelectorAll("[data-fid-sel]").forEach((b) => { b.disabled = false; });
+    if (semPermissao(e)) { state.podeEditar = false; return avisar("Você tem acesso só de leitura a este painel.", true); }
+    avisar("Não foi possível salvar. Tente de novo em alguns segundos.", true);
+  }
+}
+
+function blocoLeads(d) {
+  if (!state.leadsOk) return `<div class="empty">A lista de leads fica visível só para quem opera os disparos.</div>`;
+  const todos = state.leads.filter((l) => l.disparo === d.id);
+  const ls = fidFiltrados(d.id); const ed = state.podeEditar; const ws = fidWhats(ls);
+  const sel = ed && ws.length; const nSel = ws.filter((x) => state.fidSel.has(x)).length;
   const dis = state.podeEditar ? "" : " disabled";
   const linhas = ls.map((l) => {
     const st = l.status || "aguardando";
     return `<tr data-id="${esc(l._id)}">
+      ${sel ? `<td class="sel">${l.canal === "whatsapp" ? `<input type="checkbox" data-fidsel="${esc(l._id)}" aria-label="Selecionar ${esc(l.empresa || l.nome || "lead")}"${state.fidSel.has(l._id) ? " checked" : ""}>` : ""}</td>` : ""}
       <td><div class="who"><b>${esc(l.empresa || l.nome || "Sem nome")}</b><small>${esc(l.empresa ? l.nome : "")}${l.empresa && l.nome ? " · " : ""}${esc(l.email)}</small></div></td>
       <td><span class="tag ${l.canal}">${l.canal === "whatsapp" ? "WhatsApp" : "E-mail"}</span>${l.dia ? `<br><span class="note">${esc(l.dia)}</span>` : ""}${l.classe ? `<br><span class="note">Classe ${esc(l.classe)}${l.carta ? ` · ${esc(l.carta)}` : ""}</span>` : ""}</td>
       <td><div class="pedido">${esc(l.o_que_pediu || "")}</div><span class="note">cotou em ${fmtData(l.cotou_em)}</span></td>
@@ -413,13 +458,14 @@ function blocoLeads(d) {
   }).join("");
   return `<details class="leads" id="leadsDet"${state.leadsAberto ? " open" : ""}><summary>Leads do disparo <span class="note" style="font:400 13px var(--body)">${todos.length} leads · marque aqui as respostas</span></summary>
     <div class="leads-body">
+      ${sel ? `<div class="selecao" id="fidSelBar">${barraFidSel(ls)}</div>` : ""}
       <div class="filters">
         <input type="search" id="busca" value="${esc(state.busca)}" placeholder="Buscar por empresa, nome ou e-mail" aria-label="Buscar lead">
         <select id="fCanal" aria-label="Filtrar canal"><option value="">Todos os canais</option><option value="whatsapp"${state.canal === "whatsapp" ? " selected" : ""}>WhatsApp</option><option value="email"${state.canal === "email" ? " selected" : ""}>E-mail</option></select>
         <select id="fStatus" aria-label="Filtrar resposta"><option value="">Todas as respostas</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}"${state.status === k ? " selected" : ""}>${v}</option>`).join("")}</select>
       </div>
       <div class="status-line" id="statusLine" role="status"></div>
-      ${ls.length ? `<div class="tbl-wrap"><table><thead><tr><th>Lead</th><th>Canal</th><th>O que pediu</th><th>Envio</th><th>Resposta</th><th>Orçamento gerado</th><th>Observação</th></tr></thead><tbody>${linhas}</tbody></table></div>` : `<div class="empty">Nenhum lead com esses filtros.</div>`}
+      ${ls.length ? `<div class="tbl-wrap"><table><thead><tr>${sel ? `<th class="sel"><input type="checkbox" id="fidSelTh" aria-label="Selecionar todos os leads do WhatsApp"${nSel && nSel === ws.length ? " checked" : ""}></th>` : ""}<th>Lead</th><th>Canal</th><th>O que pediu</th><th>Envio</th><th>Resposta</th><th>Orçamento gerado</th><th>Observação</th></tr></thead><tbody>${linhas}</tbody></table></div>` : `<div class="empty">Nenhum lead com esses filtros.</div>`}
     </div></details>`;
 }
 
@@ -1402,6 +1448,7 @@ document.addEventListener("click", (ev) => {
   const vs = ev.target.closest("[data-vista]");
   if (vs) { state.vista = vs.dataset.vista === "lista" ? "lista" : "caixas"; try { localStorage.setItem(CHAVE_VISTA, state.vista); } catch (e) {} return render(); }
   const cs = ev.target.closest("[data-cz-sel]"); if (cs) return aplicarCzSel(cs.dataset.czSel, cs);
+  const fs = ev.target.closest("[data-fid-sel]"); if (fs) return aplicarFidSel(fs.dataset.fidSel === "1");
   const ee = ev.target.closest("[data-enviar-email]"); if (ee) return salvarEnvioEmail(ee.dataset.enviarEmail, ($("dataEnvio")?.value || "").trim(), ee);
   const de = ev.target.closest("[data-desmarcar-envio]");
   if (de) { $("desmarcarBox").innerHTML = `<button type="button" class="btn perigo" data-desmarcar-ok="${esc(de.dataset.desmarcarEnvio)}">Confirmar: desmarcar envio</button> <button type="button" class="btn secundario" data-desmarcar-nao="1">Manter</button>`; return; }
@@ -1441,6 +1488,8 @@ document.addEventListener("change", (ev) => {
   if (el.id === "fCzStatus") { state.status = el.value; return renderCzLeads(); }
   if (el.id === "czSelTodos" || el.id === "czSelTh") { czFiltrados(state.rota.id).forEach((l) => (el.checked ? state.czSel.add(l._id) : state.czSel.delete(l._id))); return atualizarSel(); }
   if (el.dataset.czsel) { if (el.checked) state.czSel.add(el.dataset.czsel); else state.czSel.delete(el.dataset.czsel); return atualizarSel(); }
+  if (el.id === "fidSelTodos" || el.id === "fidSelTh") { fidWhats(fidFiltrados(state.rota.id)).forEach((x) => (el.checked ? state.fidSel.add(x) : state.fidSel.delete(x))); return atualizarFidSel(); }
+  if (el.dataset.fidsel) { if (el.checked) state.fidSel.add(el.dataset.fidsel); else state.fidSel.delete(el.dataset.fidsel); return atualizarFidSel(); }
   if (el.id === "instMes") { state.instMes = el.value; return render(); }
   if (el.dataset.bm) return salvarBm(el);
   const trz = el.closest("tr[data-cz]");
@@ -1529,7 +1578,7 @@ function telaConfirmarEmail(msg) {
 function limparDados() {
   assinaturas.forEach((parar) => { try { parar(); } catch (e) {} }); assinaturas = [];
   iniciado = false;
-  Object.assign(state, { pastas: [], estrategia: null, disparos: [], leads: [], bases: {}, inst: [], cm: [], cz: [], czLeads: [], carregado: {}, czSel: new Set(), leadsOk: false, czOk: false, podeEditar: false });
+  Object.assign(state, { pastas: [], estrategia: null, disparos: [], leads: [], bases: {}, inst: [], cm: [], cz: [], czLeads: [], carregado: {}, czSel: new Set(), fidSel: new Set(), leadsOk: false, czOk: false, podeEditar: false });
 }
 (function () {
   const cfg = window.FIREBASE_CONFIG || {};
