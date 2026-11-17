@@ -4,7 +4,7 @@ const BASE_AB = ["Inteira", "A", "B"];
 const state = {
   pastas: [], estrategia: null, disparos: [], leads: [], bases: {}, inst: [], cm: [], cz: [], czLeads: [], carregado: {}, czSel: new Set(), fidSel: new Set(),
   downloads: null, leadsOk: false, czOk: false, podeEditar: true, rota: { tipo: "inicio" }, vista: "caixas",
-  busca: "", canal: "", status: "", envio: "", leadsAberto: false, instMes: "", cmBusca: "",
+  busca: "", canal: "", status: "", envio: "", leadsAberto: false, instMes: "", cmBusca: "", czBuscaLista: "", instBusca: "",
 };
 let db = null; let iniciado = false;
 const $ = (id) => document.getElementById(id);
@@ -114,7 +114,7 @@ function hashDe(r) {
   return r.id;
 }
 function ir(rota) {
-  state.rota = rota; state.busca = ""; state.canal = ""; state.status = ""; state.envio = ""; state.leadsAberto = false; state.czSel = new Set(); state.fidSel = new Set(); state.verAnalise = false; if (FRENTE(rota) !== "coldmail") state.cmBusca = "";
+  state.rota = rota; state.busca = ""; state.canal = ""; state.status = ""; state.envio = ""; state.leadsAberto = false; state.czSel = new Set(); state.fidSel = new Set(); state.verAnalise = false; if (FRENTE(rota) !== "coldmail") state.cmBusca = ""; if (FRENTE(rota) !== "coldzap") state.czBuscaLista = ""; if (FRENTE(rota) !== "institucional") state.instBusca = "";
   try { const h = hashDe(rota); history.replaceState(null, "", h ? "#" + h : location.pathname); } catch (e) {}
   render(); window.scrollTo(0, 0);
 }
@@ -639,12 +639,27 @@ const instEtapas = (s) => [
   { nome: "Respostas", icone: "ti-message-circle", v: s.respostas }, { nome: "Orçamentos", icone: "ti-file-invoice", v: s.orcamentos },
 ];
 const linhaInst = (s) => `<td class="num">${s.limpa}</td><td class="num">${s.entregues}</td><td class="num">${br(pct(s.abertos, s.entregues))}%</td><td class="num">${s.cliques}</td><td class="num">${s.respostas}</td><td class="num">${s.orcamentos}</td><td class="num">${br(pct(s.orcamentos, s.respostas))}%</td>`;
+/* Disparos institucionais do mês escolhido, mais recentes primeiro; a busca filtra só a tabela "Disparos". */
+const instDoMes = () => state.inst.filter((d) => !state.instMes || (d.data_disparo || "").startsWith(state.instMes))
+  .sort((a, b) => (b.data_disparo || b.data_solicitacao || "").localeCompare(a.data_disparo || a.data_solicitacao || ""));
+const instBate = (d) => bateBusca(state.instBusca, [d.segmento, d.solicitante, d.remetente, d.assunto, d.base_ab, fmtData(d.data_disparo)]);
+const instContagem = (lista) => (state.instBusca.trim() ? `${lista.filter(instBate).length} de ${lista.length} disparo(s)` : `${lista.length} disparo(s)`);
+function instTabelaHtml(lista) {
+  const ls = lista.filter(instBate);
+  if (!ls.length) return vazio("ti-search-off", "Nenhum disparo encontrado.", `Nada com “${esc(state.instBusca.trim())}”${state.instMes ? " neste mês" : ""}.`);
+  return `<div class="tbl-wrap"><table><thead><tr><th>Disparo em</th><th>Segmento</th><th>Base</th><th>Solicitante</th><th class="num">Base limpa</th><th class="num">Entregues</th><th class="num">% lido</th><th class="num">Cliques</th><th class="num">Respostas</th><th class="num">Orçamentos</th><th class="num">Conversão</th></tr></thead>
+      <tbody>${ls.map((d) => `<tr><td><button type="button" class="linkbtn" data-ir="inst:${esc(d.id)}">${d.data_disparo ? fmtData(d.data_disparo) : "Sem data"}</button></td><td>${esc(d.segmento || "")}</td><td><span class="tag ab">${esc(d.base_ab || "Inteira")}</span></td><td>${esc(d.solicitante || "")}</td>${linhaInst(instSomar([d]))}</tr>`).join("")}</tbody></table></div>`;
+}
+function renderInstLista() {
+  const l = $("instLista"); if (!l) return render();
+  const lista = instDoMes(); l.innerHTML = instTabelaHtml(lista);
+  const c = $("instBuscaCont"); if (c) c.textContent = instContagem(lista);
+}
 function telaInstitucional() {
   cab("Institucional", "Cartas do Soluções Industriais para uma base escolhida por segmento, sem fornecedor específico. Cada disparo é uma linha, com o funil do BillionMail e o retorno.");
   if (!state.carregado.inst) return carregando();
   const mesesInst = [...new Set(state.inst.map((d) => (d.data_disparo || "").slice(0, 7)).filter(Boolean))].sort().reverse();
-  const lista = state.inst.filter((d) => !state.instMes || (d.data_disparo || "").startsWith(state.instMes))
-    .sort((a, b) => (b.data_disparo || b.data_solicitacao || "").localeCompare(a.data_disparo || a.data_solicitacao || ""));
+  const lista = instDoMes();
   const s = instSomar(lista);
   const segs = {}; lista.forEach((d) => (segs[d.segmento || "Sem segmento"] ||= []).push(d));
   const segLinhas = Object.entries(segs).map(([seg, ds]) => [seg, ds.length, instSomar(ds)]).sort((a, b) => b[2].orcamentos - a[2].orcamentos || b[1] - a[1]);
@@ -658,8 +673,7 @@ function telaInstitucional() {
     ${painel("h-if", "ti-filter", "Funil institucional", "Do e-mail limpo ao orçamento", funil(instEtapas(s), "var(--f-inst)"))}
     ${secao("h-seg", "ti-category", "Por segmento", "Conversão = orçamentos ÷ respostas", `<div class="tbl-wrap"><table><thead><tr><th>Segmento</th><th class="num">Disparos</th><th class="num">Base limpa</th><th class="num">Entregues</th><th class="num">% lido</th><th class="num">Cliques</th><th class="num">Respostas</th><th class="num">Orçamentos</th><th class="num">Conversão</th></tr></thead>
       <tbody>${segLinhas.map(([seg, n, t]) => `<tr><td><b>${esc(seg)}</b></td><td class="num">${n}</td>${linhaInst(t)}</tr>`).join("")}</tbody></table></div>`)}
-    ${secao("h-il", "ti-list-details", "Disparos", `${lista.length} disparo(s) · abra um para lançar ou corrigir os números`, `<div class="tbl-wrap"><table><thead><tr><th>Disparo em</th><th>Segmento</th><th>Base</th><th>Solicitante</th><th class="num">Base limpa</th><th class="num">Entregues</th><th class="num">% lido</th><th class="num">Cliques</th><th class="num">Respostas</th><th class="num">Orçamentos</th><th class="num">Conversão</th></tr></thead>
-      <tbody>${lista.map((d) => `<tr><td><button type="button" class="linkbtn" data-ir="inst:${esc(d.id)}">${d.data_disparo ? fmtData(d.data_disparo) : "Sem data"}</button></td><td>${esc(d.segmento || "")}</td><td><span class="tag ab">${esc(d.base_ab || "Inteira")}</span></td><td>${esc(d.solicitante || "")}</td>${linhaInst(instSomar([d]))}</tr>`).join("")}</tbody></table></div>`)}`
+    ${secao("h-il", "ti-list-details", "Disparos", "abra um para lançar ou corrigir os números", `${barraBusca("instBusca", state.instBusca, "Buscar por segmento, solicitante ou assunto", instContagem(lista))}<div id="instLista">${instTabelaHtml(lista)}</div>`)}`
     : vazio("ti-building", `Nenhum disparo institucional registrado${state.instMes ? " neste mês" : " ainda"}.`, state.podeEditar ? "Use “Novo disparo institucional” para lançar o primeiro: segmento, base e data. Os números do BillionMail e as respostas entram depois do envio." : "Os disparos aparecem aqui assim que forem lançados.")}
   </div>`;
 }
@@ -785,6 +799,30 @@ function czSituacao(d, m = czMetricas(d)) {
   return { k: "atrasado", chip: `<span class="chip bad">Atrasado · ${m.pendentes} sem envio</span>` };
 }
 const czProgresso = (m) => progresso([["Enviados", m.enviados, "seg-ok"], ["Número não existe", m.nao_existe, "seg-bad"], ["Sem envio", m.pendentes, "seg-neutro"]], m.total);
+/* Lista do ColdZap com a busca (fornecedor, ID, produto, quem envia ou data). Os números do topo continuam sendo de todas as listas. */
+const czNova = `<div class="card nova"><div class="nome">Próximo cold mail</div><div class="sub">A lista de WhatsApp entra aqui quando a base de um cold mail é separada.</div></div>`;
+function czFiltradasLista() {
+  const todas = [...state.cz].sort((a, b) => (b.data || "").localeCompare(a.data || ""));
+  return { todas, ds: todas.filter((d) => bateBusca(state.czBuscaLista, [d.empresa, d.chave, d.produto, d.remetente, d.solicitante, fmtData(d.data)])) };
+}
+const czContagemLista = ({ todas, ds }) => (state.czBuscaLista.trim() ? `${ds.length} de ${todas.length} lista(s)` : `${todas.length} lista(s) · mais recentes primeiro`);
+function czListaHtml({ ds }) {
+  if (!ds.length) return vazio("ti-search-off", "Nenhuma lista encontrada.", `Nada com “${esc(state.czBuscaLista.trim())}”. Confira o nome ou busque pelo ID do cliente.`);
+  if (state.vista === "lista") return `<div class="linhas">${ds.map((d) => { const m = czMetricas(d); return fileira("cz", `czd:${esc(d.id)}`, esc(d.empresa), `${esc(d.chave || "")}${d.produto ? " · " + esc(d.produto) : ""}`,
+      czSituacao(d, m).chip,
+      [[`${m.enviados}/${m.total}`, "enviados"], [`${br(pct(m.respostas, m.enviados))}%`, "resposta"], [m.orcamentos, "orçamentos"]]); }).join("")}</div>`;
+  return `<div class="grid-cards">${ds.map((d) => { const m = czMetricas(d); return `<button type="button" class="card cz" data-ir="czd:${esc(d.id)}">
+      <div class="top"><div><div class="nome">${esc(d.empresa)}</div><div class="sub">${esc(d.chave || "")}${d.produto ? " · " + esc(d.produto) : ""}</div></div><span class="zap-ico" aria-hidden="true"><i class="ti ti-brand-whatsapp"></i></span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">${czSituacao(d, m).chip}</div>${d.remetente ? `<div class="sub">Envia ${esc(d.remetente)}</div>` : ""}
+      ${czProgresso(m)}
+      <div class="stats"><div class="stat"><b>${m.enviados}/${m.total}</b><span>enviados</span></div><div class="stat"><b>${br(pct(m.respostas, m.enviados))}%</b><span>resposta</span></div><div class="stat"><b>${m.orcamentos}</b><span>orçamentos</span></div></div>
+      <span class="go">Abrir lista <i class="ti ti-arrow-right" aria-hidden="true"></i></span></button>`; }).join("")}${state.czBuscaLista.trim() ? "" : czNova}</div>`;
+}
+function renderCzLista() {
+  const l = $("czLista"); if (!l) return render();
+  const fl = czFiltradasLista(); l.innerHTML = czListaHtml(fl);
+  const c = $("czBuscaListaCont"); if (c) c.textContent = czContagemLista(fl);
+}
 function telaColdzap() {
   cab("ColdZap", "A parte da base de um cold mail por fornecedor que vai pelo WhatsApp, enviada à mão. Cada lista mostra lead a lead quem recebeu, quem respondeu e quais respostas viraram orçamento.");
   if (!state.carregado.cz) return carregando();
@@ -797,17 +835,8 @@ function telaColdzap() {
       ${painel("h-zp", "ti-progress-check", "Andamento dos envios", `${tot.enviados + tot.nao_existe} de ${tot.total} tratados`, `<div class="cz" style="display:grid;gap:14px">${ds.map((d) => { const m = czMetricas(d);
         return `<div style="display:grid;gap:6px"><div style="display:flex;justify-content:space-between;gap:8px;font-size:13.5px"><button type="button" class="linkbtn" style="text-decoration:none;font-weight:600;color:var(--ink)" data-ir="czd:${esc(d.id)}">${esc(d.empresa)}</button><span class="note">${m.enviados + m.nao_existe}/${m.total}</span></div>${czProgresso(m)}</div>`; }).join("") || `<p class="note">Nenhuma lista ainda.</p>`}</div>`)}
     </div>
-    ${secao("h-zl", "ti-list-details", "Listas por fornecedor", `${ds.length} lista(s)`, state.vista === "lista"
-      ? `<div class="linhas">${ds.map((d) => { const m = czMetricas(d); return fileira("cz", `czd:${esc(d.id)}`, esc(d.empresa), `${esc(d.chave || "")}${d.produto ? " · " + esc(d.produto) : ""}`,
-          czSituacao(d, m).chip,
-          [[`${m.enviados}/${m.total}`, "enviados"], [`${br(pct(m.respostas, m.enviados))}%`, "resposta"], [m.orcamentos, "orçamentos"]]); }).join("")}</div>`
-      : `<div class="grid-cards">${ds.map((d) => { const m = czMetricas(d); return `<button type="button" class="card cz" data-ir="czd:${esc(d.id)}">
-        <div class="top"><div><div class="nome">${esc(d.empresa)}</div><div class="sub">${esc(d.chave || "")}${d.produto ? " · " + esc(d.produto) : ""}</div></div><span class="zap-ico" aria-hidden="true"><i class="ti ti-brand-whatsapp"></i></span></div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px">${czSituacao(d, m).chip}</div>${d.remetente ? `<div class="sub">Envia ${esc(d.remetente)}</div>` : ""}
-        ${czProgresso(m)}
-        <div class="stats"><div class="stat"><b>${m.enviados}/${m.total}</b><span>enviados</span></div><div class="stat"><b>${br(pct(m.respostas, m.enviados))}%</b><span>resposta</span></div><div class="stat"><b>${m.orcamentos}</b><span>orçamentos</span></div></div>
-        <span class="go">Abrir lista <i class="ti ti-arrow-right" aria-hidden="true"></i></span></button>`; }).join("")}
-        <div class="card nova"><div class="nome">Próximo cold mail</div><div class="sub">A lista de WhatsApp entra aqui quando a base de um cold mail é separada.</div></div></div>`, ds.length ? seletorVista() : "")}
+    ${secao("h-zl", "ti-list-details", "Listas por fornecedor", "", ds.length ? (() => { const fl = czFiltradasLista(); return `${barraBusca("czBuscaLista", state.czBuscaLista, "Buscar por fornecedor, ID do cliente ou produto", czContagemLista(fl))}<div id="czLista">${czListaHtml(fl)}</div>`; })()
+      : `<div class="grid-cards">${czNova}</div>`, ds.length ? seletorVista() : "")}
   </div>`;
 }
 function telaCzDisparo(id) {
@@ -999,7 +1028,9 @@ const cmLinhaForn = (f) => { const hojeE = f.envios.find((d) => cmSituacao(d).k 
 /* Busca do Cold mail: fornecedor, ID do cliente, produto, solicitante ou assunto, sem diferença de acento ou maiúscula.
    Filtra a lista de fornecedores e a tabela "Todos os envios"; os números do topo continuam sendo de todos. */
 const semAcento = (t) => String(t ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-const cmBate = (d) => { const q = semAcento(state.cmBusca); return !q || [d.empresa, String(d.chave || "").replace(/\.0$/, ""), d.produto, d.solicitante, d.assunto].some((v) => semAcento(v).includes(q)); };
+const bateBusca = (q, vals) => { const x = semAcento(q); return !x || vals.some((v) => semAcento(v).includes(x)); };
+const barraBusca = (id, valor, ph, contagem) => `<div class="busca-barra"><label class="busca-campo" for="${id}"><i class="ti ti-search" aria-hidden="true"></i><input type="search" id="${id}" value="${esc(valor)}" placeholder="${ph}" aria-label="${ph}" autocomplete="off"></label><span class="note" id="${id}Cont" role="status">${contagem}</span></div>`;
+const cmBate = (d) => bateBusca(state.cmBusca, [d.empresa, String(d.chave || "").replace(/\.0$/, ""), d.produto, d.solicitante, d.assunto, fmtData(d.data_disparo)]);
 function cmFiltrados() { const todos = cmFornecedores(); return { todos, forn: todos.filter((f) => f.envios.some(cmBate)) }; }
 const cmContagem = ({ todos, forn }) => (state.cmBusca.trim() ? `${forn.length} de ${todos.length} fornecedor(es)` : `${todos.length} fornecedor(es) · mais recentes primeiro`);
 function cmListaHtml({ forn }) {
@@ -1393,6 +1424,8 @@ function atualizar() {
   if (a === "busca") return renderLeadsSomente();
   if (a === "czbusca") return renderCzLeads();
   if (a === "cmBusca") return renderCmLista();
+  if (a === "czBuscaLista") return renderCzLista();
+  if (a === "instBusca") return renderInstLista();
   render();
 }
 
@@ -1661,6 +1694,8 @@ document.addEventListener("input", (ev) => {
   if (ev.target.id === "busca") { state.busca = ev.target.value; renderLeadsSomente(); }
   if (ev.target.id === "czbusca") { state.busca = ev.target.value; renderCzLeads(); }
   if (ev.target.id === "cmBusca") { state.cmBusca = ev.target.value; renderCmLista(); }
+  if (ev.target.id === "czBuscaLista") { state.czBuscaLista = ev.target.value; renderCzLista(); }
+  if (ev.target.id === "instBusca") { state.instBusca = ev.target.value; renderInstLista(); }
 });
 document.addEventListener("change", (ev) => {
   const el = ev.target;
