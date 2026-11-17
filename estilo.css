@@ -415,7 +415,15 @@ input[type="email"] { width: 100%; padding: 10px 12px; }
 @media (max-width: 860px) { .lateral-pe { display: flex; align-items: center; gap: 8px; } .tema { width: auto; padding: 6px 9px; } .tema span { display: none; } }
 
 /* ---------- Por necessidade: cartões por segmento ---------- */
-.segmentos { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+/* lista "se cotou → oferecer" (por produto) */
+.de-para { background: var(--surface); border: 1px solid var(--line); border-radius: var(--raio); box-shadow: var(--sombra); overflow: hidden; }
+.de-para-cab, .de-para-linha { display: grid; grid-template-columns: minmax(180px, 280px) minmax(0, 1fr); gap: 6px 24px; padding: 12px 18px; }
+.de-para-cab { background: var(--surface-2); font: 500 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.de-para-linha { border-top: 1px solid var(--line-soft); align-items: baseline; }
+.de-para-linha b { font-weight: 600; font-size: 14px; }
+.de-para-linha span { font-size: 13.5px; color: var(--ink-2); }
+.segmentos { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.segmento.geral::before { background: var(--ciano, var(--primaria)); }
 .segmento { position: relative; overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: var(--raio); box-shadow: var(--sombra); padding: 18px; display: grid; gap: 12px; align-content: start; }
 .segmento::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--primaria); }
 .seg-topo { display: grid; gap: 3px; }
@@ -522,6 +530,8 @@ input[type="checkbox"] { accent-color: var(--marinho-ativo); width: 16px; height
   .login-lado, .login-form-lado { padding: 24px 20px; }
 }
 @media (max-width: 700px) {
+  .de-para-cab { display: none; }
+  .de-para-linha { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .passos { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .passo { grid-template-columns: 42px minmax(0, 1fr); column-gap: 14px; padding: 0 0 18px; }
   .passo > :not(.n) { grid-column: 2; }

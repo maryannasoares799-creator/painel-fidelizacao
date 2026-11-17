@@ -221,22 +221,22 @@ const visaoDe = (d) => (d.visao === "necessidade" ? "necessidade" : "produto");
 const chipVisao = (d) => `<span class="chip info sem-ponto"><i class="ti ${VISOES[visaoDe(d)].ico}" aria-hidden="true" style="font-size:13px"></i>${VISOES[visaoDe(d)].nome}</span>`;
 
 /* Matriz de oferta: um nó (o que o lead cotou, ou o segmento) ligado às linhas do que oferecer. */
-function matriz(eyebrow, nome, nota, itens) {
-  return `<div class="matriz"><div class="matriz-no"><span class="eyebrow">${eyebrow}</span><b>${esc(nome)}</b>${nota ? `<p>${esc(nota)}</p>` : ""}</div>
-    <div class="ofertas">${itens.map((e) => `<div class="oferta${e.evitar ? " nao" : ""}"><div><h3>${e.rotulo ? `<small>${esc(e.rotulo)}</small>` : ""}${esc(e.linha)}</h3><div class="para">${esc(e.oferta || "")}</div></div>${e.dado ? `<div class="dado">${esc(e.dado)}</div>` : ""}</div>`).join("")}</div></div>`;
-}
-const matrizProduto = (p) => (p.estrategia?.length ? matriz("Se o lead cotou", p.nome, p.estrategia_nota,
-  p.estrategia.map((e) => ({ rotulo: "Cotou", linha: e.linha, oferta: e.oferta ? "Apresente: " + e.oferta : "", dado: e.dado }))) : "");
+/* Listas de oferta, no formato curto para o time: o que o lead cotou e o que oferecer.
+   Os números da análise (lift, quantidade de leads, período) ficam guardados na pasta, mas não aparecem no painel. */
+const maiuscula = (t) => { const x = String(t || "").trim(); return x ? x[0].toUpperCase() + x.slice(1) : ""; };
+const matrizProduto = (p) => (p.estrategia?.length ? `<div class="de-para">
+    <div class="de-para-cab" aria-hidden="true"><span>Se o lead cotou ${esc(p.nome.toLowerCase())}</span><span>Oferecer</span></div>
+    ${p.estrategia.map((e) => `<div class="de-para-linha"><b>${esc(e.linha)}</b><span>${esc(maiuscula(e.oferta))}</span></div>`).join("")}</div>` : "");
 function matrizNecessidade(p) {
   const grupos = p.necessidade || [];
   if (!grupos.length) return "";
-  const gerais = grupos.filter((g) => g.geral); const segs = grupos.filter((g) => !g.geral);
-  const seg = (g) => `<article class="segmento" aria-label="${esc(g.segmento)}"><div class="seg-topo"><span class="eyebrow">Segmento</span><b>${esc(g.segmento)}</b>${g.nota ? `<p class="note">${esc(g.nota)}</p>` : ""}</div>
-    <ul>${(g.itens || []).map((e) => `<li><div><b>${esc(e.linha)}</b><span>${esc(e.oferta || "")}</span></div>${e.dado ? `<span class="dado-seg">${esc(e.dado)}</span>` : ""}</li>`).join("")}</ul>
-    ${g.evitar ? `<p class="evitar"><i class="ti ti-ban" aria-hidden="true"></i>${esc(g.evitar)}</p>` : ""}</article>`;
-  return `<div class="pilha" style="gap:16px">${gerais.map((g) => matriz(`Quem cotou ${esc(p.nome.toLowerCase())}`, g.segmento, g.nota,
-    [...(g.itens || []).map((e) => ({ linha: e.linha, oferta: e.oferta, dado: e.dado })), ...(g.evitar ? [{ evitar: true, rotulo: "Evitar", linha: "Não oferecer", oferta: g.evitar }] : [])])).join("")}
-    ${segs.length ? `<div class="segmentos">${segs.map(seg).join("")}</div>` : `<p class="note" style="display:flex;gap:8px;align-items:center"><i class="ti ti-hourglass" aria-hidden="true"></i>As listas por segmento entram aqui depois de aprovadas.</p>`}</div>`;
+  const curto = (t) => String(t || "").split(":")[0].trim();
+  const igual = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+  const card = (g) => `<article class="segmento${g.geral ? " geral" : ""}" aria-label="${esc(g.segmento)}"><div class="seg-topo"><span class="eyebrow">${g.geral ? `Quem cotou ${esc(p.nome.toLowerCase())}` : "Segmento"}</span><b>${esc(g.segmento)}</b></div>
+    <ul>${(g.itens || []).map((e) => `<li><div><b>${esc(e.linha)}</b>${e.oferta && !igual(e.oferta, e.linha) ? `<span>${esc(e.oferta)}</span>` : ""}</div></li>`).join("")}</ul>
+    ${g.evitar ? `<p class="evitar"><i class="ti ti-ban" aria-hidden="true"></i>Não oferecer: ${esc(curto(g.evitar))}</p>` : ""}</article>`;
+  const ordem = [...grupos.filter((g) => g.geral), ...grupos.filter((g) => !g.geral)];
+  return `<div class="segmentos">${ordem.map(card).join("")}</div>`;
 }
 /* Quem recebeu o quê: classes A, B e C dos leads do disparo e quantos ficaram fora. */
 function classesBloco(d) {
@@ -326,16 +326,10 @@ function telaVisao(k) {
   const matrizes = pastas.map((p) => (k === "produto" ? matrizProduto(p) : matrizNecessidade(p))).filter(Boolean);
   const novoBtn = state.podeEditar ? `<button type="button" class="btn" data-ir="fid-novo:${k}"><i class="ti ti-plus" aria-hidden="true"></i>Novo disparo</button>` : "";
   return `<div class="pilha">
-    ${novoBtn ? `<div class="acoes">${novoBtn}${ds.length ? `<button type="button" class="btn secundario" data-rolar="h-vd"><i class="ti ti-list" aria-hidden="true"></i>Ver os disparos (${ds.length})</button>` : ""}<span class="note">Registre cada disparo ${v.nome.toLowerCase()}: data, base, números do BillionMail e o retorno.</span></div>` : ""}
-    <dl class="ficha">
-      <div><dt>Para quem</dt><dd>${v.base}</dd></div>
-      <div><dt>O que oferece</dt><dd>${v.oferta}</dd></div>
-      <div><dt>Canais</dt><dd>E-mail com a carta do grupo; WhatsApp personalizado para a classe A</dd></div>
-      <div><dt>Como medimos</dt><dd>Respostas, interessados e orçamentos gerados</dd></div>
-    </dl>
+    ${novoBtn ? `<div class="acoes">${novoBtn}${ds.length ? `<button type="button" class="btn secundario" data-rolar="h-vd"><i class="ti ti-list" aria-hidden="true"></i>Ver os disparos (${ds.length})</button>` : ""}<span class="note">Registre aqui cada disparo, com a data, a base e os números.</span></div>` : ""}
     ${secao("h-vr", "ti-chart-bar", "Resultado", `${ds.length} disparo(s) ${v.nome.toLowerCase()}`, kpis(m))}
-    ${secao("h-vo", "ti-target", "O que oferecer", k === "produto" ? "Para cada tipo cotado, as outras opções do mesmo produto" : "Por produto cotado e por segmento", matrizes.join("") || vazio("ti-list-search", "Nenhuma lista de oferta cadastrada ainda."))}
     ${secao("h-vd", "ti-send", "Disparos", ds.length ? `${ds.length} disparo(s) · abra um para ver ou atualizar os números` : "", ds.length ? `<div class="grid-cards">${ds.map(cardDisparo).join("")}</div>` : vazio("ti-send-off", `Nenhum disparo ${v.nome.toLowerCase()} ainda.`, state.podeEditar ? "Use “Novo disparo” para registrar o primeiro." : "O primeiro disparo aparece aqui quando for registrado."), novoBtn)}
+    ${secao("h-vo", "ti-target", "O que oferecer", k === "produto" ? "O tipo que o lead cotou sai da oferta" : "Por segmento da empresa", matrizes.join("") || vazio("ti-list-search", "Nenhuma lista de oferta cadastrada ainda."))}
   </div>`;
 }
 function telaPasta(id) {
@@ -344,8 +338,8 @@ function telaPasta(id) {
   const ds = state.disparos.filter((d) => d.pasta === id).sort((a, b) => (b.data || "").localeCompare(a.data || "") || (b.numero || 0) - (a.numero || 0));
   return `<div class="pilha">
     ${secao("h-pr", "ti-chart-bar", "Resultado da pasta", "", kpis(metricasPasta(p)))}
-    ${p.estrategia?.length ? secao("h-est", VISOES.produto.ico, "Por produto: o que oferecer", "Para cada tipo cotado, as outras opções do mesmo produto", matrizProduto(p)) : ""}
-    ${p.necessidade?.length ? secao("h-nec", VISOES.necessidade.ico, "Por necessidade: o que oferecer", "Complementos de quem usa o produto e listas por segmento", matrizNecessidade(p)) : ""}
+    ${p.estrategia?.length ? secao("h-est", VISOES.produto.ico, "Por produto: o que oferecer", "O tipo que o lead cotou sai da oferta", matrizProduto(p)) : ""}
+    ${p.necessidade?.length ? secao("h-nec", VISOES.necessidade.ico, "Por necessidade: o que oferecer", "Por segmento da empresa", matrizNecessidade(p)) : ""}
     ${secao("h-ds", "ti-send", "Disparos", `${ds.length} disparo(s)`, `<div class="grid-cards">${ds.map(cardDisparo).join("") || vazio("ti-send-off", "Nenhum disparo nesta pasta ainda.")}</div>`)}
   </div>`;
 }
