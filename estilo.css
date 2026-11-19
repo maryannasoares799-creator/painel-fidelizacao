@@ -440,6 +440,33 @@ input[type="email"] { width: 100%; padding: 10px 12px; }
 .tabela-forn .chip { white-space: nowrap; }
 .tabela-forn .linkbtn.forn { font-weight: 600; color: var(--ink); text-decoration: none; padding: 0; text-align: left; }
 .tabela-forn tr.clicavel:hover .linkbtn.forn { color: var(--f-cm); }
+/* ColdZap: nova lista e planilha da base */
+.card.nova.pode { cursor: pointer; color: var(--ink-2); text-align: left; font: inherit; }
+.card.nova.pode .nome { display: flex; align-items: center; gap: 6px; color: var(--f-cz); }
+.card.nova.pode:hover { border-color: var(--f-cz); background: var(--f-cz-soft); }
+.arquivo { position: relative; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 14px; border: 1.5px dashed var(--line); border-radius: var(--raio); padding: 18px 20px; cursor: pointer; background: var(--surface-2); color: var(--ink-2); font-size: 14px; }
+.arquivo > i { grid-row: span 2; font-size: 30px; color: var(--f-cz); }
+.arquivo small { color: var(--muted); font-size: 12.5px; }
+.arquivo:hover, .arquivo.sobre { border-color: var(--f-cz); background: var(--f-cz-soft); }
+.arquivo:focus-within { outline: 2px solid var(--f-cz); outline-offset: 2px; }
+.arquivo input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.cz-previa { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+#czForm, #czForm fieldset { grid-template-columns: minmax(0, 1fr); } /* a tabela da prévia rola dentro da caixa, sem esticar a tela */
+.cz-previa:empty { display: none; }
+.cz-arq { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+label.campo-inline { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.cz-mapa { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--surface-2); }
+.cz-mapa summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--ink); }
+.cz-mapa[open] summary { margin-bottom: 10px; }
+.cz-mapa .campos { margin-top: 10px; }
+.cz-mapa textarea { margin-top: 8px; }
+.cz-resumo { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--ink-2); }
+.cz-resumo b { color: var(--ink); font-size: 16px; }
+.cz-alerta { margin: 0; background: var(--bad-soft); color: var(--bad); border-radius: 10px; padding: 10px 14px; font-size: 13.5px; }
+.cz-alerta.atencao { background: var(--f-inst-soft); color: var(--f-inst); }
+.cz-fora summary { cursor: pointer; font-size: 13px; color: var(--primaria); }
+.cz-fora ul { margin: 8px 0 0; padding-left: 18px; font-size: 13px; color: var(--ink-2); display: grid; gap: 3px; }
+td.nowrap { white-space: nowrap; }
 /* campo de busca (Cold mail) */
 .busca-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 14px; }
 .busca-campo { position: relative; display: block; flex: 1 1 300px; max-width: 520px; }

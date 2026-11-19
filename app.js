@@ -99,7 +99,7 @@ function somar(lista) {
 function metricasPasta(p) { return somar(state.disparos.filter((d) => d.pasta === p.id).map((d) => metricasDisparo(d).geral)); }
 
 /* ---------- navegação ---------- */
-const FRENTE = (r) => (r.tipo === "geral" ? "geral" : r.tipo === "estrategia" ? "estrategia" : ["coldmail", "cmf", "cm", "cm-novo"].includes(r.tipo) ? "coldmail" : ["institucional", "inst", "inst-novo"].includes(r.tipo) ? "institucional" : ["coldzap", "czd"].includes(r.tipo) ? "coldzap" : "fidelizacao");
+const FRENTE = (r) => (r.tipo === "geral" ? "geral" : r.tipo === "estrategia" ? "estrategia" : ["coldmail", "cmf", "cm", "cm-novo"].includes(r.tipo) ? "coldmail" : ["institucional", "inst", "inst-novo"].includes(r.tipo) ? "institucional" : ["coldzap", "czd", "cz-nova", "cz-editar"].includes(r.tipo) ? "coldzap" : "fidelizacao");
 function hashDe(r) {
   if (r.tipo === "geral") return "";
   if (r.tipo === "inicio") return "fidelizacao";
@@ -108,13 +108,15 @@ function hashDe(r) {
   if (r.tipo === "coldmail") return "coldmail";
   if (r.tipo === "cm-novo") return "coldmail-novo";
   if (r.tipo === "cmf") return "cmf-" + encodeURIComponent(r.id);
+  if (r.tipo === "cz-nova") return "coldzap-nova" + (r.id ? "-" + encodeURIComponent(r.id) : "");
+  if (r.tipo === "cz-editar") return "coldzap-editar-" + r.id;
   if (r.tipo === "fid-novo") return "fidelizacao-novo-" + r.id;
   if (r.tipo === "fid-editar") return "editar-" + r.id;
   if (r.tipo === "visao") return "fid-" + r.id;
   return r.id;
 }
 function ir(rota) {
-  state.rota = rota; state.busca = ""; state.canal = ""; state.status = ""; state.envio = ""; state.leadsAberto = false; state.czSel = new Set(); state.fidSel = new Set(); state.verAnalise = false; if (FRENTE(rota) !== "coldmail") state.cmBusca = ""; if (FRENTE(rota) !== "coldzap") state.czBuscaLista = ""; if (FRENTE(rota) !== "institucional") state.instBusca = "";
+  state.rota = rota; state.busca = ""; state.canal = ""; state.status = ""; state.envio = ""; state.leadsAberto = false; state.czSel = new Set(); state.fidSel = new Set(); state.verAnalise = false; state.czUp = null; if (FRENTE(rota) !== "coldmail") state.cmBusca = ""; if (FRENTE(rota) !== "coldzap") state.czBuscaLista = ""; if (FRENTE(rota) !== "institucional") state.instBusca = "";
   try { const h = hashDe(rota); history.replaceState(null, "", h ? "#" + h : location.pathname); } catch (e) {}
   render(); window.scrollTo(0, 0);
 }
@@ -131,6 +133,9 @@ function rotaDoHash() {
   if (h.startsWith("cmf-")) return { tipo: "cmf", id: h.slice(4) };
   if (h.startsWith("cm-")) return { tipo: "cm", id: h };
   if (h === "coldzap") return { tipo: "coldzap" };
+  if (h === "coldzap-nova") return { tipo: "cz-nova" };
+  if (h.startsWith("coldzap-nova-")) return { tipo: "cz-nova", id: h.slice(13) };
+  if (h.startsWith("coldzap-editar-")) return { tipo: "cz-editar", id: h.slice(15) };
   if (h.startsWith("in-")) return { tipo: "inst", id: h };
   if (h.startsWith("cz-")) return { tipo: "czd", id: h };
   if (h.startsWith("fidelizacao-novo-")) return { tipo: "fid-novo", id: h.slice(17) === "necessidade" ? "necessidade" : "produto" };
@@ -174,6 +179,8 @@ function crumbs() {
   if (r.tipo === "cm" || r.tipo === "cm-novo") { const d = r.tipo === "cm" ? state.cm.find((x) => x.id === r.id) : null; const k = d ? normChave(d.chave) || "sem-id:" + String(d.empresa || "").trim().toLowerCase() : r.id; const fo = k ? cmFornecedores().find((x) => x.k === k) : null;
     parts = [`<button type="button" data-ir="coldmail">Cold mail</button>`, ...(fo ? [`<button type="button" data-ir="cmf:${esc(fo.k)}">${esc(fo.empresa)}</button>`] : []), `<span aria-current="page">${r.tipo === "cm" ? "Editar envio" : "Novo envio"}</span>`]; }
   if (r.tipo === "inst" || r.tipo === "inst-novo") parts = [`<button type="button" data-ir="institucional">Institucional</button>`, `<span aria-current="page">${r.tipo === "inst-novo" ? "Novo disparo" : "Ficha do disparo"}</span>`];
+  if (r.tipo === "cz-nova") parts = [`<button type="button" data-ir="coldzap">ColdZap</button>`, `<span aria-current="page">Nova lista</span>`];
+  if (r.tipo === "cz-editar") parts = [`<button type="button" data-ir="coldzap">ColdZap</button>`, `<button type="button" data-ir="czd:${esc(r.id)}">${esc(state.cz.find((x) => x.id === r.id)?.empresa || "Lista")}</button>`, `<span aria-current="page">Editar lista</span>`];
   if (r.tipo === "czd") parts = [`<button type="button" data-ir="coldzap">ColdZap</button>`, `<span aria-current="page">${esc(state.cz.find((x) => x.id === r.id)?.empresa || "Lista")}</span>`];
   c.innerHTML = parts.join(sep);
 }
@@ -800,7 +807,6 @@ function czSituacao(d, m = czMetricas(d)) {
 }
 const czProgresso = (m) => progresso([["Enviados", m.enviados, "seg-ok"], ["Número não existe", m.nao_existe, "seg-bad"], ["Sem envio", m.pendentes, "seg-neutro"]], m.total);
 /* Lista do ColdZap com a busca (fornecedor, ID, produto, quem envia ou data). Os números do topo continuam sendo de todas as listas. */
-const czNova = `<div class="card nova"><div class="nome">Próximo cold mail</div><div class="sub">A lista de WhatsApp entra aqui quando a base de um cold mail é separada.</div></div>`;
 function czFiltradasLista() {
   const todas = [...state.cz].sort((a, b) => (b.data || "").localeCompare(a.data || ""));
   return { todas, ds: todas.filter((d) => bateBusca(state.czBuscaLista, [d.empresa, d.chave, d.produto, d.remetente, d.solicitante, fmtData(d.data)])) };
@@ -816,7 +822,7 @@ function czListaHtml({ ds }) {
       <div style="display:flex;flex-wrap:wrap;gap:6px">${czSituacao(d, m).chip}</div>${d.remetente ? `<div class="sub">Envia ${esc(d.remetente)}</div>` : ""}
       ${czProgresso(m)}
       <div class="stats"><div class="stat"><b>${m.enviados}/${m.total}</b><span>enviados</span></div><div class="stat"><b>${br(pct(m.respostas, m.enviados))}%</b><span>resposta</span></div><div class="stat"><b>${m.orcamentos}</b><span>orçamentos</span></div></div>
-      <span class="go">Abrir lista <i class="ti ti-arrow-right" aria-hidden="true"></i></span></button>`; }).join("")}${state.czBuscaLista.trim() ? "" : czNova}</div>`;
+      <span class="go">Abrir lista <i class="ti ti-arrow-right" aria-hidden="true"></i></span></button>`; }).join("")}${state.czBuscaLista.trim() ? "" : czNovaCard()}</div>`;
 }
 function renderCzLista() {
   const l = $("czLista"); if (!l) return render();
@@ -829,6 +835,7 @@ function telaColdzap() {
   const ds = [...state.cz].sort((a, b) => (b.data || "").localeCompare(a.data || ""));
   const tot = czSomar(ds.map(czMetricas));
   return `<div class="pilha">
+    ${czPodeCriar() ? `<div class="acoes"><button type="button" class="btn" data-ir="cz-nova"><i class="ti ti-plus" aria-hidden="true"></i>Nova lista</button><span class="note">Suba a planilha com os leads do WhatsApp e o painel monta a lista.</span></div>` : ""}
     ${secao("h-zt", "ti-chart-bar", "Todas as listas", `${ds.length} lista(s) de WhatsApp`, czKpis(tot))}
     <div class="grade-2">
       ${painel("h-zf", "ti-filter", "Funil do ColdZap", "Todas as listas", funil(czEtapas(tot), "var(--f-cz)"))}
@@ -836,7 +843,7 @@ function telaColdzap() {
         return `<div style="display:grid;gap:6px"><div style="display:flex;justify-content:space-between;gap:8px;font-size:13.5px"><button type="button" class="linkbtn" style="text-decoration:none;font-weight:600;color:var(--ink)" data-ir="czd:${esc(d.id)}">${esc(d.empresa)}</button><span class="note">${m.enviados + m.nao_existe}/${m.total}</span></div>${czProgresso(m)}</div>`; }).join("") || `<p class="note">Nenhuma lista ainda.</p>`}</div>`)}
     </div>
     ${secao("h-zl", "ti-list-details", "Listas por fornecedor", "", ds.length ? (() => { const fl = czFiltradasLista(); return `${barraBusca("czBuscaLista", state.czBuscaLista, "Buscar por fornecedor, ID do cliente ou produto", czContagemLista(fl))}<div id="czLista">${czListaHtml(fl)}</div>`; })()
-      : `<div class="grid-cards">${czNova}</div>`, ds.length ? seletorVista() : "")}
+      : `<div class="grid-cards">${czNovaCard()}</div>`, ds.length ? seletorVista() : "")}
   </div>`;
 }
 function telaCzDisparo(id) {
@@ -854,7 +861,7 @@ function telaCzDisparo(id) {
       ${d.base ? `<div><dt>Base</dt><dd>${esc(d.base)}</dd></div>` : ""}
       ${d.solicitante ? `<div><dt>Solicitante</dt><dd>${esc(d.solicitante)}</dd></div>` : ""}
     </dl>
-    ${state.downloads && window.XLSX && state.czOk ? `<div class="acoes"><button type="button" class="btn secundario" data-czbaixar="${esc(d.id)}"><i class="ti ti-file-spreadsheet" aria-hidden="true"></i>Baixar lista em Excel</button><span class="note" id="czMsg">Lista com o link de cada conversa e as marcações feitas aqui.</span></div>` : ""}
+    ${czPodeCriar() || (state.downloads && window.XLSX && state.czOk) ? `<div class="acoes">${czPodeCriar() ? `<button type="button" class="btn secundario" data-ir="cz-editar:${esc(d.id)}"><i class="ti ti-pencil" aria-hidden="true"></i>Editar lista ou acrescentar leads</button>` : ""}${state.downloads && window.XLSX && state.czOk ? `<button type="button" class="btn secundario" data-czbaixar="${esc(d.id)}"><i class="ti ti-file-spreadsheet" aria-hidden="true"></i>Baixar lista em Excel</button><span class="note" id="czMsg">Lista com o link de cada conversa e as marcações feitas aqui.</span>` : ""}</div>` : ""}
     ${secao("h-zr", "ti-chart-bar", "Resultado", "", czKpis(m))}
     <div class="grade-2 cz">
       ${painel("h-zf", "ti-filter", "Funil da lista", "", funil(czEtapas(m), "var(--f-cz)"))}
@@ -965,6 +972,282 @@ async function baixarCz(id, btn) {
     [7, 14, 28, 16, 30, 24, 14, 40, 60, 30, 18, 16, 11, 36]);
   await salvarXlsx(wb, `ColdZap - ${d?.empresa || "lista"} ${d?.chave || ""}.xlsx`.replace(/\s+\.xlsx$/, ".xlsx"), "czMsg");
   btn.disabled = false;
+}
+
+/* ---------- ColdZap: nova lista e base por planilha ----------
+   Quem opera cria a lista sem depender de ninguém: preenche o fornecedor e sobe a planilha do WhatsApp (Excel ou CSV).
+   O painel reconhece as colunas pelo nome (dá para trocar), limpa o celular, deixa de fora quem está sem celular ou repetido
+   e grava um lead por linha, na ordem da planilha. Na edição, a planilha acrescenta leads no fim da lista. */
+const czPodeCriar = () => state.podeEditar && state.czOk;
+const czNovaCard = () => (czPodeCriar()
+  ? `<button type="button" class="card nova pode" data-ir="cz-nova"><div class="nome"><i class="ti ti-plus" aria-hidden="true"></i>Nova lista</div><div class="sub">Suba a planilha com os leads que vão pelo WhatsApp. O painel monta a lista com o link de cada conversa.</div></button>`
+  : `<div class="card nova"><div class="nome">Próximo cold mail</div><div class="sub">A lista de WhatsApp entra aqui quando a base de um cold mail é separada.</div></div>`);
+/* Cada informação do lead e os nomes de coluna que o painel procura (sem acento e sem maiúscula). */
+const CZ_CAMPOS = [
+  ["empresa", "Empresa", ["empresa", "razao social", "cliente"]],
+  ["nome", "Nome do contato", ["nome", "contato", "responsavel"]],
+  ["celular", "Celular / WhatsApp", ["celular", "whatsapp", "telefone", "fone", "numero"]],
+  ["link", "Link da conversa (wa.me)", ["abrir conversa", "link", "wa.me"]],
+  ["mensagem", "Mensagem", ["mensagem", "texto"]],
+  ["produto_cotado", "O que cotou", ["produto cotado", "o que cotou", "ultima cotacao", "produto"]],
+  ["cotou_em", "Data da cotação", ["data da cotacao", "cotou em", "data", "quando"]],
+  ["o_que_pediu", "Por que está na lista", ["por que esta na lista", "motivo", "o que pediu"]],
+  ["pedido_original", "Pedido original", ["pedido original", "pedido"]],
+  ["email", "E-mail", ["e-mail", "email"]],
+];
+/* Ordem da procura: o link vem antes da mensagem porque o título dele costuma citar a mensagem ("Abrir conversa (mensagem já preenchida)"). */
+const CZ_PRIORIDADE = ["link", "mensagem", "cotou_em", "o_que_pediu", "pedido_original", "produto_cotado", "email", "celular", "empresa", "nome"];
+function czDetectar(cab, cols) {
+  const h = cab.map(semAcento); const usado = new Set(); const mapa = {};
+  CZ_PRIORIDADE.forEach((campo) => {
+    mapa[campo] = "";
+    for (const p of CZ_CAMPOS.find((c) => c[0] === campo)[2]) {
+      const i = cols.find((j) => !usado.has(j) && (p === "nome" ? h[j] === "nome" || h[j].startsWith("nome ") : h[j].includes(p)));
+      if (i != null) { mapa[campo] = String(i); usado.add(i); return; }
+    }
+  });
+  return mapa;
+}
+/* Celular no formato do wa.me: 55 + DDD + número. Aceita máscara, +55, zero na frente e dois números na mesma célula (fica o celular). */
+function czNumero(v) {
+  let achado = "";
+  for (const p of String(v ?? "").split(/[\/,;|]|\s+e\s+|\s+ou\s+/i)) {
+    let d = p.replace(/\D/g, "").replace(/^0+/, "");
+    if (d.length === 10 || d.length === 11) d = "55" + d;
+    if (/^55\d{10,11}$/.test(d)) { if (d.length === 13) return d; achado ||= d; }
+  }
+  return achado;
+}
+const czCelular = (n) => (n.length === 13 ? `(${n.slice(2, 4)}) ${n.slice(4, 9)}-${n.slice(9)}` : `(${n.slice(2, 4)}) ${n.slice(4, 8)}-${n.slice(8)}`);
+function czDoLink(v) {
+  const s = String(v ?? "");
+  const m = s.match(/wa\.me\/\+?(\d{8,15})(?:\/?\?text=([^\s"]*))?/i) || s.match(/whatsapp\.com\/send\/?\?phone=\+?(\d{8,15})(?:&text=([^\s"&]*))?/i);
+  if (!m) return { numero: "", mensagem: "" };
+  let t = ""; try { t = m[2] ? decodeURIComponent(m[2]) : ""; } catch (e) { t = ""; }
+  return { numero: czNumero(m[1]), mensagem: t };
+}
+/* Data da cotação: número de data do Excel, dd/mm/aaaa ou aaaa-mm-dd. */
+function czData(v) {
+  if (v instanceof Date && !isNaN(v)) return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, "0")}-${String(v.getDate()).padStart(2, "0")}`;
+  if (typeof v === "number" && v > 20000 && v < 80000) return new Date(Math.round((v - 25569) * 864e5)).toISOString().slice(0, 10);
+  const s = String(v ?? "").trim(); let m;
+  if ((m = s.match(/^(\d{4})-(\d{2})-(\d{2})/))) return `${m[1]}-${m[2]}-${m[3]}`;
+  if ((m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})\b/))) {
+    const a = m[3].length === 2 ? "20" + m[3] : m[3]; const mes = +m[2]; const dia = +m[1];
+    if (a.length === 4 && mes >= 1 && mes <= 12 && dia >= 1 && dia <= 31) return `${a}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+  }
+  return "";
+}
+const czPrimeiroNome = (n) => { const p = String(n || "").trim().split(/\s+/)[0] || ""; return p ? p.charAt(0).toUpperCase() + p.slice(1).toLowerCase() : ""; };
+const czPreencher = (t, l) => t.replace(/\{\s*nome\s*\}/gi, czPrimeiroNome(l.nome)).replace(/\{\s*empresa\s*\}/gi, l.empresa || "").replace(/\{\s*produto\s*\}/gi, l.produto_cotado || "")
+  .replace(/[ \t]+,/g, ",").replace(/,(\s*,)+/g, ",").replace(/[ \t]{2,}/g, " ");
+/* Linhas da aba, com o número da linha no Excel. O link pode estar no texto, no hyperlink da célula ou numa fórmula HYPERLINK. */
+function czLinhasDaFolha(ws) {
+  if (!ws || !ws["!ref"]) return [];
+  const r = XLSX.utils.decode_range(ws["!ref"]); const out = []; const wa = /wa\.me|whatsapp\.com/i;
+  const ultC = Math.min(r.e.c, r.s.c + 59); const ultR = Math.min(r.e.r, r.s.r + 5000);
+  for (let R = r.s.r; R <= ultR; R++) {
+    const c = [];
+    for (let C = r.s.c; C <= ultC; C++) {
+      const x = ws[XLSX.utils.encode_cell({ r: R, c: C })];
+      if (!x) { c.push(""); continue; }
+      const v = x.v ?? ""; const fl = x.f && String(x.f).match(/HYPERLINK\(\s*"([^"]+)"/i);
+      c.push(!wa.test(String(v)) && x.l?.Target && wa.test(x.l.Target) ? x.l.Target : !wa.test(String(v)) && fl && wa.test(fl[1]) ? fl[1] : v);
+    }
+    out.push({ n: R + 1, c });
+  }
+  return out;
+}
+function czCarregarFolha() {
+  const u = state.czUp; const linhas = czLinhasDaFolha(u.wb.Sheets[u.folha]);
+  const temValor = (x) => String(x ?? "").trim() !== "";
+  const h = linhas.findIndex((r, i) => i < 15 && r.c.filter((x) => typeof x === "string" && x.trim() !== "").length >= 2);
+  if (h < 0) { Object.assign(u, { cab: [], cols: [], linhas: [], mapa: {} }); return; }
+  u.cab = linhas[h].c.map((x, i) => String(x ?? "").trim() || `Coluna ${i + 1}`);
+  u.linhas = linhas.slice(h + 1).filter((r) => r.c.some(temValor));
+  u.cols = u.cab.map((_, i) => i).filter((i) => temValor(linhas[h].c[i]) || u.linhas.some((r) => temValor(r.c[i])));
+  u.mapa = czDetectar(u.cab, u.cols);
+}
+async function czLerArquivo(file) {
+  if (!file) return;
+  const padrao = state.czUp?.padrao || "";
+  if (!window.XLSX) state.czUp = { erro: "O leitor de planilhas não carregou. Recarregue a página e tente de novo.", padrao };
+  else if (file.size > 15 * 1024 * 1024) state.czUp = { erro: "A planilha passa de 15 MB. Deixe só a aba com os leads do WhatsApp e tente de novo.", padrao };
+  else {
+    try {
+      const buf = await file.arrayBuffer(); let wb;
+      if (/\.(csv|txt)$/i.test(file.name)) {
+        let txt; try { txt = new TextDecoder("utf-8", { fatal: true }).decode(buf); } catch (e) { txt = new TextDecoder("windows-1252").decode(buf); }
+        wb = XLSX.read(txt.replace(/^﻿/, ""), { type: "string", raw: true });
+      } else wb = XLSX.read(buf, { type: "array", sheetStubs: true }); /* sheetStubs: guarda a fórmula HYPERLINK mesmo sem valor salvo */
+      const folhas = wb.SheetNames;
+      state.czUp = { arquivo: file.name, wb, folhas, folha: folhas.find((n) => /whats|zap/i.test(n)) || folhas[0], padrao };
+      czCarregarFolha();
+    } catch (e) { state.czUp = { erro: "Não consegui ler este arquivo. Salve a planilha como Excel (.xlsx) ou CSV e tente de novo.", padrao }; }
+  }
+  const b = $("czPrevia"); if (b) b.innerHTML = czPreviaHtml();
+}
+/* Leads que a planilha vai gerar com as colunas escolhidas. Ficam de fora: sem celular válido, repetidos e (na edição) quem já está na lista. */
+function czMontar() {
+  const u = state.czUp; if (!u || !u.linhas) return { ok: [], fora: [] };
+  const r = state.rota; const listaId = r.tipo === "cz-editar" ? r.id : "";
+  const jaNaLista = new Set(listaId ? state.czLeads.filter((l) => l.disparo === listaId).map((l) => l.numero).filter(Boolean) : []);
+  const val = (row, k) => { const i = u.mapa[k]; return i === "" || i == null ? "" : row.c[+i] ?? ""; };
+  const txt = (row, k) => String(val(row, k)).replace(/\r\n?/g, "\n").trim();
+  const vistos = new Set(); const ok = []; const fora = [];
+  u.linhas.forEach((row) => {
+    const lk = czDoLink(val(row, "link"));
+    const numero = czNumero(val(row, "celular")) || lk.numero;
+    const l = { linha: row.n, nome: txt(row, "nome"), empresa: txt(row, "empresa"), numero, celular: numero ? czCelular(numero) : txt(row, "celular"), email: txt(row, "email"),
+      produto_cotado: txt(row, "produto_cotado"), cotou_em: czData(val(row, "cotou_em")), o_que_pediu: txt(row, "o_que_pediu"), pedido_original: txt(row, "pedido_original") };
+    const daPlanilha = txt(row, "mensagem") || lk.mensagem.replace(/\r\n?/g, "\n").trim();
+    l.mensagem = daPlanilha || (u.padrao.trim() ? czPreencher(u.padrao.trim(), l) : "");
+    l.msgDe = daPlanilha ? "planilha" : l.mensagem ? "padrao" : "";
+    if (!numero) fora.push({ ...l, motivo: txt(row, "celular") ? "celular inválido" : "sem celular" });
+    else if (jaNaLista.has(numero)) fora.push({ ...l, motivo: "já está na lista" });
+    else if (vistos.has(numero)) fora.push({ ...l, motivo: "número repetido na planilha" });
+    else { vistos.add(numero); ok.push(l); }
+  });
+  return { ok, fora };
+}
+const czMapeados = (u) => CZ_CAMPOS.filter(([k]) => (u.mapa[k] ?? "") !== "").length;
+const czSemContato = (u) => (u.mapa.celular ?? "") === "" && (u.mapa.link ?? "") === "";
+function czPreviaHtml() {
+  const u = state.czUp; if (!u) return "";
+  if (u.erro) return `<p class="cz-alerta">${esc(u.erro)}</p>`;
+  const opcoes = (sel) => `<option value="">Não usar</option>${u.cols.map((i) => `<option value="${i}"${String(i) === String(sel) ? " selected" : ""}>${esc(u.cab[i])}</option>`).join("")}`;
+  const semMsg = czMontar().ok.some((l) => l.msgDe !== "planilha");
+  return `<div class="cz-arq"><span class="chip ok sem-ponto"><i class="ti ti-file-check" aria-hidden="true"></i>${esc(u.arquivo)}</span>
+      ${u.folhas.length > 1 ? `<label class="campo-inline" for="z_folha">Aba<select id="z_folha">${u.folhas.map((n) => `<option value="${esc(n)}"${n === u.folha ? " selected" : ""}>${esc(n)}</option>`).join("")}</select></label>` : ""}
+      <span class="note">${u.linhas.length} linha(s) com dados · para trocar, escolha outro arquivo</span></div>
+    ${u.cab.length ? `<details class="cz-mapa"${czSemContato(u) ? " open" : ""}><summary id="czMapaSum">Colunas reconhecidas: ${czMapeados(u)} de ${CZ_CAMPOS.length} · conferir</summary>
+      <p class="note">O painel ligou cada informação a uma coluna da planilha pelo nome do título. Se alguma estiver errada, troque aqui.</p>
+      <div class="campos">${CZ_CAMPOS.map(([k, rot]) => `<label class="campo" for="zm_${k}">${rot}<select id="zm_${k}" data-czmap="${k}">${opcoes(u.mapa[k])}</select></label>`).join("")}</div></details>
+    <details class="cz-mapa"${semMsg ? " open" : ""}><summary>Mensagem padrão (para quem está sem mensagem na planilha)</summary>
+      <label class="campo largo" for="z_padrao"><span class="note">Use {nome} para o primeiro nome, {empresa} para a empresa e {produto} para o que ela cotou. Quem já tem mensagem na planilha fica com a dela.</span>
+      <textarea id="z_padrao" rows="6" placeholder="Olá, {nome}, tudo bem?">${esc(u.padrao)}</textarea></label></details>` : ""}
+    <div id="czResumo">${czResumoHtml()}</div>`;
+}
+function czResumoHtml() {
+  const u = state.czUp; if (!u || u.erro) return "";
+  if (!u.cab.length) return `<p class="cz-alerta">Não achei os títulos das colunas nesta aba. A primeira linha precisa ter os nomes (Nome, Empresa, Celular…).</p>`;
+  if (czSemContato(u)) return `<p class="cz-alerta">Não achei a coluna do celular. Em “Colunas reconhecidas”, escolha a coluna com o celular ou com o link do WhatsApp.</p>`;
+  const { ok, fora } = czMontar(); const semMsg = ok.filter((l) => !l.mensagem).length; const MAX = 60;
+  const linha = (l, i) => `<tr><td class="num">${i + 1}</td><td><div class="who"><b>${esc(l.empresa || l.nome || "Sem nome")}</b>${l.empresa && l.nome ? `<small>${esc(l.nome)}</small>` : ""}</div></td>
+    <td class="nowrap">${esc(l.celular)}</td><td>${esc(l.produto_cotado || "—")}${l.cotou_em ? `<small class="note"> · ${fmtData(l.cotou_em)}</small>` : ""}</td>
+    <td>${l.msgDe === "planilha" ? `<span class="chip ok">Da planilha</span>` : l.msgDe === "padrao" ? `<span class="chip info">Padrão</span>` : `<span class="chip neutro">Sem mensagem</span>`}</td></tr>`;
+  return `<div class="cz-resumo"><span><b>${ok.length}</b> lead(s) entram na lista</span>${fora.length ? `<span><b>${fora.length}</b> fica(m) de fora</span>` : ""}${semMsg ? `<span><b>${semMsg}</b> sem mensagem</span>` : ""}</div>
+    ${ok.length > 60 ? `<p class="cz-alerta atencao">O ColdZap costuma ter de 20 a 30 leads, e esta planilha tem ${ok.length}. Confira se é só a parte da base que vai pelo WhatsApp.</p>` : ""}
+    ${semMsg ? `<p class="note">Sem mensagem, o link abre a conversa em branco. Se quiser, escreva a mensagem padrão acima.</p>` : ""}
+    ${ok.length ? `<div class="tbl-wrap"><table><thead><tr><th class="num">#</th><th>Lead</th><th>Celular</th><th>O que cotou</th><th>Mensagem</th></tr></thead><tbody>${ok.slice(0, MAX).map(linha).join("")}</tbody></table></div>${ok.length > MAX ? `<p class="note">Mostrando os ${MAX} primeiros de ${ok.length}.</p>` : ""}` : ""}
+    ${ok[0]?.mensagem ? `<details class="msg"><summary>Ver a mensagem do 1º lead</summary><div class="msg-txt">${esc(ok[0].mensagem)}</div></details>` : ""}
+    ${fora.length ? `<details class="cz-fora"${ok.length ? "" : " open"}><summary>Ficam de fora (${fora.length})</summary><ul>${fora.slice(0, 100).map((l) => `<li>Linha ${l.linha}: ${esc(l.empresa || l.nome || "sem nome")} · ${l.motivo}</li>`).join("")}</ul></details>` : ""}`;
+}
+function czRenderResumo() {
+  const u = state.czUp; const b = $("czResumo"); if (!b) return;
+  b.innerHTML = czResumoHtml(); const s = $("czMapaSum"); if (s && u?.mapa) s.textContent = `Colunas reconhecidas: ${czMapeados(u)} de ${CZ_CAMPOS.length} · conferir`;
+}
+function czNovoId(chave) {
+  const base = "cz-" + (String(chave || "").toLowerCase().replace(/\.0$/, "").replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || Date.now().toString(36));
+  let id = base; let n = 2; while (state.cz.some((x) => x.id === id)) id = `${base}-${n++}`;
+  return id;
+}
+function telaCzForm(id, chavePre) {
+  const novo = !id; const d0 = novo ? null : state.cz.find((x) => x.id === id);
+  const voltar = novo ? (chavePre ? `cmf:${esc(chavePre)}` : "coldzap") : `czd:${esc(id)}`;
+  if (!state.carregado.cz || !state.carregado.czl) { cab("ColdZap", ""); return carregando(); }
+  if (!czPodeCriar()) { cab("ColdZap", ""); return vazio("ti-lock", "Só quem opera os disparos cria e edita listas do ColdZap.", `<button type="button" class="linkbtn" data-ir="coldzap">Voltar para o ColdZap</button>`); }
+  if (!novo && !d0) { cab("ColdZap", ""); return vazio("ti-list-search", "Esta lista não existe.", `<button type="button" class="linkbtn" data-ir="coldzap">Voltar para o ColdZap</button>`); }
+  const semLista = cmFornecedores().filter((f) => !f.cz);
+  const fo = novo && chavePre ? cmFornecedores().find((x) => x.k === chavePre) : null;
+  const d = novo ? { empresa: fo?.empresa || "", chave: fo?.chave || "", produto: fo?.produto || "", solicitante: fo?.solicitante || "", data: "", remetente: "", base: "" } : d0;
+  const nAtuais = novo ? 0 : state.czLeads.filter((l) => l.disparo === id).length;
+  cab(novo ? "Nova lista do ColdZap" : `Editar lista · ${d.empresa}`, novo
+    ? "Preencha o fornecedor e suba a planilha com os leads que vão pelo WhatsApp. O painel monta um lead por linha, com o link da conversa e a mensagem."
+    : "Corrija os dados da lista ou acrescente leads de outra planilha. Os leads e as marcações que já estão aqui continuam.");
+  const f = (k, rot, tipo, val, extra = "") => `<label class="campo" for="z_${k}">${rot}<input type="${tipo}" id="z_${k}" value="${esc(val ?? "")}"${extra}></label>`;
+  return `<form id="czForm" class="form" data-id="${esc(id || "")}" data-voltar="${voltar}" novalidate>
+    <fieldset><legend>1. Fornecedor e disparo</legend>
+      ${novo && semLista.length ? `<label class="campo largo" for="z_cm">Puxar os dados de um fornecedor do Cold mail<select id="z_cm"><option value="">Escolha o fornecedor (opcional)</option>${semLista.map((x) => `<option value="${esc(x.k)}"${fo && fo.k === x.k ? " selected" : ""}>${esc(x.empresa || "Sem nome")}${x.chave ? " · " + esc(x.chave) : ""}</option>`).join("")}</select></label>` : ""}
+      <div class="campos">
+      ${f("empresa", "Fornecedor", "text", String(d.empresa || "").trim(), ' required autocomplete="off"')}
+      ${f("chave", "ID do cliente", "text", String(d.chave || "").replace(/\.0$/, ""), ' placeholder="ex.: 26-40549-1"')}
+      ${f("produto", "Produto", "text", d.produto)}
+      ${f("data", "Data do disparo do WhatsApp", "date", String(d.data || "").slice(0, 10))}
+      ${f("remetente", "Quem envia", "text", d.remetente)}
+      ${f("solicitante", "Solicitante", "text", d.solicitante)}
+      <label class="campo largo" for="z_base">Sobre a base (opcional)<input type="text" id="z_base" value="${esc(d.base || "")}" placeholder="ex.: 20 leads no WhatsApp; 300 receberam o e-mail pelo BillionMail"></label>
+    </div></fieldset>
+    <fieldset><legend>2. ${novo ? "Planilha com os leads" : "Acrescentar leads (opcional)"}</legend>
+      <p class="note" style="margin:0">${novo ? "A primeira linha da planilha precisa ter os títulos das colunas: Nome, Empresa, Celular, Mensagem… A planilha do WhatsApp que já usamos entra direto." : `A lista tem ${nAtuais} lead(s). Os da planilha entram no fim, e quem já está na lista (mesmo celular) fica de fora.`}</p>
+      <label class="arquivo" id="czDrop" for="z_arquivo"><i class="ti ti-file-spreadsheet" aria-hidden="true"></i><span><b>Escolher a planilha</b> ou arrastar o arquivo para cá</span><small>Excel (.xlsx ou .xls) ou CSV</small>
+        <input type="file" id="z_arquivo" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"></label>
+      <div id="czPrevia" class="cz-previa">${czPreviaHtml()}</div>
+    </fieldset>
+    <div class="acoes">
+      <button type="submit" class="btn" id="czSalvar"><i class="ti ti-device-floppy" aria-hidden="true"></i>${novo ? "Criar lista" : "Salvar alterações"}</button>
+      <button type="button" class="btn secundario" data-ir="${voltar}">Voltar</button>
+      ${!novo ? `<span id="czApagarBox"><button type="button" class="btn secundario" data-cz-apagar="${esc(id)}">Excluir lista</button></span>` : ""}
+      <span class="status-line" id="czFormMsg" role="status"></span>
+    </div>
+  </form>`;
+}
+async function salvarCzForm(form) {
+  if (!db || !czPodeCriar()) return;
+  const msg = $("czFormMsg"); const aviso = (t, e) => { msg.textContent = t; msg.classList.toggle("err", !!e); };
+  const v = (k) => ($("z_" + k)?.value ?? "").trim();
+  if (!v("empresa")) { aviso("Informe o fornecedor.", true); $("z_empresa").focus(); return; }
+  const id0 = form.dataset.id; const novo = !id0;
+  if (state.czUp?.erro) { aviso("A planilha não foi lida. Escolha o arquivo de novo.", true); return; }
+  if (state.czUp && czSemContato(state.czUp)) { aviso("Escolha a coluna do celular antes de salvar.", true); return; }
+  const { ok } = czMontar();
+  if (novo && !ok.length) { aviso(state.czUp ? "A planilha não tem nenhum lead com celular válido." : "Suba a planilha com os leads do WhatsApp.", true); return; }
+  const agora = new Date().toISOString();
+  const id = id0 || czNovoId(v("chave"));
+  const atuais = state.czLeads.filter((l) => l.disparo === id);
+  const idsUsados = new Set(state.czLeads.map((l) => l._id));
+  let ordem = atuais.reduce((a, l) => Math.max(a, +l.ordem || 0), 0);
+  const novos = ok.map((l) => {
+    ordem++; let lid = `${id}-${String(ordem).padStart(2, "0")}`; while (idsUsados.has(lid)) lid += "b"; idsUsados.add(lid);
+    return { _id: lid, disparo: id, ordem, nome: l.nome, empresa: l.empresa, celular: l.celular, numero: l.numero, email: l.email, produto_cotado: l.produto_cotado, cotou_em: l.cotou_em,
+      o_que_pediu: l.o_que_pediu, pedido_original: l.pedido_original, mensagem: l.mensagem, envio: "", status: "aguardando", orcamento: false, obs: "", enviado_em: "", respondido_em: "",
+      origem: "planilha", criado_em: agora, atualizado_em: agora };
+  });
+  const todos = [...atuais, ...novos];
+  const dados = { empresa: v("empresa"), chave: v("chave"), produto: v("produto"), data: v("data"), remetente: v("remetente"), solicitante: v("solicitante"), base: v("base"),
+    leads: todos.length, metricas: czCalc(todos), atualizado_em: agora };
+  const btn = $("czSalvar"); if (btn) btn.disabled = true;
+  aviso(novos.length ? `Gravando ${novos.length} lead(s)…` : "Salvando…");
+  try {
+    const listaRef = db.collection("coldzap").doc(id);
+    const ops = novos.map((l) => { const { _id, ...x } = l; return [db.collection("coldzap_leads").doc(_id), x]; });
+    let i = 0;
+    do {
+      const lote = db.batch(); ops.slice(i, i + 400).forEach(([ref, x]) => lote.set(ref, x)); i += 400;
+      if (i >= ops.length) { if (novo) lote.set(listaRef, { ...dados, origem: "painel", criado_em: agora }); else lote.update(listaRef, dados); }
+      await lote.commit();
+    } while (i < ops.length);
+    const lst = state.cz.find((x) => x.id === id);
+    if (lst) Object.assign(lst, dados); else state.cz.push({ id, ...dados, origem: "painel", criado_em: agora });
+    novos.forEach((l) => { if (!state.czLeads.some((x) => x._id === l._id)) state.czLeads.push(l); });
+    ir({ tipo: "czd", id });
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    aviso(semPermissao(e) ? "Você tem acesso só de leitura a este painel." : "Não foi possível salvar. Tente de novo em alguns segundos.", true);
+  }
+}
+async function apagarCzLista(id, btn) {
+  if (!db || !czPodeCriar()) return;
+  btn.disabled = true;
+  const refs = [...state.czLeads.filter((l) => l.disparo === id).map((l) => db.collection("coldzap_leads").doc(l._id)), db.collection("coldzap").doc(id)];
+  try {
+    for (let i = 0; i < refs.length; i += 400) { const lote = db.batch(); refs.slice(i, i + 400).forEach((r) => lote.delete(r)); await lote.commit(); }
+    state.czLeads = state.czLeads.filter((l) => l.disparo !== id); state.cz = state.cz.filter((x) => x.id !== id);
+    ir({ tipo: "coldzap" });
+  } catch (e) {
+    btn.disabled = false; const m = $("czFormMsg");
+    if (m) { m.textContent = semPermissao(e) ? "Você tem acesso só de leitura a este painel." : "Não foi possível excluir agora."; m.classList.add("err"); }
+  }
 }
 
 /* ---------- Cold mail: carta por fornecedor, pelo BillionMail ----------
@@ -1110,6 +1393,7 @@ function telaCmFornecedor(k) {
     ${secao("h-cmr", "ti-chart-bar", "Resultado do e-mail", "Envios com números do BillionMail", cmKpis(tot, null))}
     ${secao("h-cmv", "ti-mail-forward", "Envios", `${f.envios.length} envio(s)`, `<div class="envios">${f.envios.map(envio).join("")}</div>
       ${state.podeEditar ? `<button type="button" class="btn secundario" style="justify-self:start;margin-top:14px" data-ir="cm-novo:${esc(f.k)}"><i class="ti ti-plus" aria-hidden="true"></i>Novo envio deste fornecedor</button>` : ""}`)}
+    ${!f.cz && czPodeCriar() ? `<div class="analise-nota"><i class="ti ti-brand-whatsapp" aria-hidden="true"></i><span>A parte da base que vai pelo WhatsApp ainda não tem lista no ColdZap. <button type="button" class="linkbtn" data-ir="cz-nova:${esc(f.k)}">Criar a lista do ColdZap</button></span></div>` : ""}
     ${f.cz ? (() => { const limpa = f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0); const datasEmail = [...new Set(f.envios.map((d) => d.data_disparo).filter(Boolean))].sort().map(fmtData).join(" e ");
       return `<section class="painel" aria-labelledby="h-cmb"><div class="section-head"><h2 id="h-cmb"><i class="ti ti-arrows-split" aria-hidden="true"></i>Base dividida em dois canais</h2><span class="note">${limpa + czm.total} leads no total · cada canal tem a sua data</span></div>
       <div class="canais-base"><div class="cm"><i class="ti ti-mail-forward" aria-hidden="true"></i><div><b>${limpa}</b><span>pelo e-mail (Cold mail)</span><small>Disparo do e-mail: ${datasEmail || "sem data"}</small></div></div>
@@ -1210,7 +1494,7 @@ function render() {
     : r.tipo === "fid-novo" ? telaFidForm(null, r.id) : r.tipo === "fid-editar" ? telaFidForm(r.id)
     : r.tipo === "institucional" ? telaInstitucional() : r.tipo === "inst" ? telaInstForm(r.id) : r.tipo === "inst-novo" ? telaInstForm(null)
     : r.tipo === "coldmail" ? telaColdmail() : r.tipo === "cmf" ? telaCmFornecedor(r.id) : r.tipo === "cm" ? telaCmForm(r.id) : r.tipo === "cm-novo" ? telaCmForm(null, r.id)
-    : r.tipo === "coldzap" ? telaColdzap() : r.tipo === "czd" ? telaCzDisparo(r.id)
+    : r.tipo === "coldzap" ? telaColdzap() : r.tipo === "czd" ? telaCzDisparo(r.id) : r.tipo === "cz-nova" ? telaCzForm(null, r.id) : r.tipo === "cz-editar" ? telaCzForm(r.id)
     : r.tipo === "estrategia" ? telaEstrategia() : r.tipo === "visao" ? telaVisao(r.id)
     : r.tipo === "inicio" ? telaInicio() : telaGeral();
 }
@@ -1460,6 +1744,7 @@ function atualizar() {
   if ((r.tipo === "inst" || r.tipo === "inst-novo") && $("instForm")) return;
   if ((r.tipo === "cm" || r.tipo === "cm-novo") && $("cmForm")) return;
   if ((r.tipo === "fid-novo" || r.tipo === "fid-editar") && $("fidForm")) return;
+  if ((r.tipo === "cz-nova" || r.tipo === "cz-editar") && $("czForm")) return;
   if (a.startsWith("obs-") || a.startsWith("czobs-")) return;
   if (a === "busca") return renderLeadsSomente();
   if (a === "czbusca") return renderCzLeads();
@@ -1714,6 +1999,12 @@ document.addEventListener("click", (ev) => {
   const fan = ev.target.closest("[data-fid-apagar-nao]");
   if (fan) { $("fidApagarBox").innerHTML = `<button type="button" class="btn secundario" data-fid-apagar="${esc(fan.dataset.fidApagarNao)}">Excluir disparo</button>`; return; }
   const fao = ev.target.closest("[data-fid-apagar-ok]"); if (fao) return apagarFid(fao.dataset.fidApagarOk, fao);
+  const za = ev.target.closest("[data-cz-apagar]");
+  if (za) { const n = state.czLeads.filter((l) => l.disparo === za.dataset.czApagar).length;
+    $("czApagarBox").innerHTML = `<button type="button" class="btn perigo" data-cz-apagar-ok="${esc(za.dataset.czApagar)}">Confirmar: excluir a lista e os ${n} lead(s)</button> <button type="button" class="btn secundario" data-cz-apagar-nao="${esc(za.dataset.czApagar)}">Manter</button>`; return; }
+  const zan = ev.target.closest("[data-cz-apagar-nao]");
+  if (zan) { $("czApagarBox").innerHTML = `<button type="button" class="btn secundario" data-cz-apagar="${esc(zan.dataset.czApagarNao)}">Excluir lista</button>`; return; }
+  const zao = ev.target.closest("[data-cz-apagar-ok]"); if (zao) return apagarCzLista(zao.dataset.czApagarOk, zao);
   const ca = ev.target.closest("[data-cm-apagar]");
   if (ca) { $("cmApagarBox").innerHTML = `<button type="button" class="btn perigo" data-cm-apagar-ok="${esc(ca.dataset.cmApagar)}">Confirmar exclusão</button> <button type="button" class="btn secundario" data-cm-apagar-nao="${esc(ca.dataset.cmApagar)}">Manter</button>`; return; }
   const can = ev.target.closest("[data-cm-apagar-nao]");
@@ -1728,7 +2019,7 @@ document.addEventListener("click", (ev) => {
   const i = b.dataset.ir.indexOf(":");
   ir(i < 0 ? { tipo: b.dataset.ir } : { tipo: b.dataset.ir.slice(0, i), id: b.dataset.ir.slice(i + 1) });
 });
-document.addEventListener("submit", (ev) => { if (ev.target.id === "instForm") { ev.preventDefault(); salvarInst(ev.target); } if (ev.target.id === "cmForm") { ev.preventDefault(); salvarCm(ev.target); } if (ev.target.id === "fidForm") { ev.preventDefault(); salvarFid(ev.target); } });
+document.addEventListener("submit", (ev) => { if (ev.target.id === "instForm") { ev.preventDefault(); salvarInst(ev.target); } if (ev.target.id === "cmForm") { ev.preventDefault(); salvarCm(ev.target); } if (ev.target.id === "fidForm") { ev.preventDefault(); salvarFid(ev.target); } if (ev.target.id === "czForm") { ev.preventDefault(); salvarCzForm(ev.target); } });
 document.addEventListener("toggle", (ev) => { if (ev.target.id === "leadsDet") state.leadsAberto = ev.target.open; }, true);
 document.addEventListener("input", (ev) => {
   if (ev.target.id === "busca") { state.busca = ev.target.value; renderLeadsSomente(); }
@@ -1736,9 +2027,24 @@ document.addEventListener("input", (ev) => {
   if (ev.target.id === "cmBusca") { state.cmBusca = ev.target.value; renderCmLista(); }
   if (ev.target.id === "czBuscaLista") { state.czBuscaLista = ev.target.value; renderCzLista(); }
   if (ev.target.id === "instBusca") { state.instBusca = ev.target.value; renderInstLista(); }
+  if (ev.target.id === "z_padrao" && state.czUp) { state.czUp.padrao = ev.target.value; czRenderResumo(); }
+});
+/* Planilha do ColdZap: arrastar o arquivo para a caixa. Fora da caixa, o arquivo solto não abre no lugar do painel. */
+["dragenter", "dragover"].forEach((t) => document.addEventListener(t, (ev) => {
+  if (!$("czForm")) return; ev.preventDefault();
+  const z = ev.target.closest?.("#czDrop"); if (z) z.classList.add("sobre"); else $("czDrop")?.classList.remove("sobre");
+}));
+document.addEventListener("dragleave", (ev) => { const z = ev.target.closest?.("#czDrop"); if (z && !z.contains(ev.relatedTarget)) z.classList.remove("sobre"); });
+document.addEventListener("drop", (ev) => {
+  if (!$("czForm")) return; ev.preventDefault(); $("czDrop")?.classList.remove("sobre");
+  if (ev.target.closest?.("#czDrop")) { const f = ev.dataTransfer?.files?.[0]; if (f) czLerArquivo(f); }
 });
 document.addEventListener("change", (ev) => {
   const el = ev.target;
+  if (el.id === "z_arquivo") { const f = el.files?.[0]; el.value = ""; return czLerArquivo(f); }
+  if (el.id === "z_folha" && state.czUp?.wb) { state.czUp.folha = el.value; czCarregarFolha(); const b = $("czPrevia"); if (b) b.innerHTML = czPreviaHtml(); return; }
+  if (el.dataset.czmap && state.czUp?.mapa) { state.czUp.mapa[el.dataset.czmap] = el.value; return czRenderResumo(); }
+  if (el.id === "z_cm") { const fo = cmFornecedores().find((x) => x.k === el.value); if (fo) [["empresa", fo.empresa], ["chave", fo.chave], ["produto", fo.produto], ["solicitante", fo.solicitante]].forEach(([k, val]) => { const i = $("z_" + k); if (i) i.value = val || ""; }); return; }
   if (el.id === "fCanal") { state.canal = el.value; return renderLeadsSomente(); }
   if (el.id === "fStatus") { state.status = el.value; return renderLeadsSomente(); }
   if (el.id === "fEnvio") { state.envio = el.value; return renderCzLeads(); }
