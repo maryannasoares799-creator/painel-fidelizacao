@@ -60,6 +60,9 @@ p { margin: 0; }
 .menu { display: grid; gap: 2px; }
 .menu-rotulo { font: 500 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--marinho-texto); opacity: .7; padding: 14px 12px 6px; }
 .menu-rotulo:first-child { padding-top: 0; }
+/* divisórias entre as opções do menu */
+.menu-grupo { display: grid; gap: 2px; }
+.menu-grupo + .menu-grupo { border-top: 1px solid rgba(255, 255, 255, .09); margin-top: 4px; padding-top: 5px; }
 .menu-item { position: relative; display: flex; align-items: center; gap: 11px; width: 100%; font: 500 14px var(--body); color: #c9d8ef; background: none; border: 0; border-radius: 9px; padding: 9px 12px; cursor: pointer; text-align: left; }
 .menu-item i { font-size: 18px; opacity: .85; }
 .menu-item .qtd { margin-left: auto; font: 500 11px var(--mono); color: var(--marinho-texto); background: rgba(255, 255, 255, .07); border-radius: 999px; padding: 1px 8px; }
@@ -585,6 +588,7 @@ input[type="checkbox"] { accent-color: var(--marinho-ativo); width: 16px; height
   .marca div span { display: none; }
   .marca .logo { width: 30px; height: 30px; font-size: 17px; }
   .menu-rotulo, .menu-item .qtd, .aovivo { display: none; }
+  .menu-grupo { display: contents; }
   .menu { display: flex; gap: 4px; overflow-x: auto; flex: 1 1 100%; order: 3; scrollbar-width: none; }
   .menu-item { width: auto; white-space: nowrap; padding: 7px 11px; }
   .menu-item[aria-current="page"]::before { left: 10px; right: 10px; top: auto; bottom: 0; width: auto; height: 2px; border-radius: 2px; }

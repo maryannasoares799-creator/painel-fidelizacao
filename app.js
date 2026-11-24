@@ -150,16 +150,17 @@ function abas() {
   const r = state.rota;
   const sub = (k) => `<button type="button" class="menu-item menu-sub" data-ir="visao:${k}"${(r.tipo === "visao" || r.tipo === "fid-novo") && r.id === k ? ' aria-current="page"' : ""}><i class="ti ${VISOES[k].ico}" aria-hidden="true"></i>${VISOES[k].nome}</button>`;
   const item = ([k, destino, ico, nome, qtd]) => `<button type="button" class="menu-item" data-ir="${destino}"${f === k && r.tipo !== "visao" && r.tipo !== "fid-novo" ? ' aria-current="page"' : ""}><i class="ti ${ico}" aria-hidden="true"></i>${nome}${iniciado && qtd != null ? `<span class="qtd" aria-label="${qtd} registro(s)">${qtd}</span>` : ""}</button>`;
+  /* cada opção num bloco, com uma linha fina entre os blocos; a Fidelização leva as duas visões no mesmo bloco */
+  const grupo = (html) => `<div class="menu-grupo">${html}</div>`;
   $("abas").innerHTML = `<div class="menu-rotulo">Painel</div>` + [
     ["geral", "geral", "ti-layout-dashboard", "Visão geral"],
     ["estrategia", "estrategia", "ti-route", "Estratégia"],
-  ].map(item).join("") + `<div class="menu-rotulo">Frentes</div>` + [
-    ["fidelizacao", "inicio", "ti-refresh", "Fidelização", state.disparos.length],
-  ].map(item).join("") + sub("produto") + sub("necessidade") + [
+  ].map((x) => grupo(item(x))).join("") + `<div class="menu-rotulo">Frentes</div>`
+    + grupo(item(["fidelizacao", "inicio", "ti-refresh", "Fidelização", state.disparos.length]) + sub("produto") + sub("necessidade")) + [
     ["institucional", "institucional", "ti-building", "Institucional", state.inst.length],
     ["coldmail", "coldmail", "ti-mail-forward", "Cold mail", cmFornecedores().length],
     ["coldzap", "coldzap", "ti-brand-whatsapp", "ColdZap", state.cz.length],
-  ].map(item).join("");
+  ].map((x) => grupo(item(x))).join("");
 }
 function crumbs() {
   const c = $("crumbs"); const r = state.rota; const sep = `<i class="ti ti-chevron-right" aria-hidden="true"></i>`;
