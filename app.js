@@ -120,9 +120,21 @@ function hashDe(r) {
   if (r.tipo === "visao") return "fid-" + r.id;
   return r.id;
 }
-function ir(rota) {
+/* Prepara o estado para mostrar uma rota (limpa buscas, filtros e seleções da tela anterior). */
+function prepararRota(rota) {
   state.rota = rota; state.busca = ""; state.canal = ""; state.status = ""; state.envio = ""; state.leadsAberto = false; state.czSel = new Set(); state.fidSel = new Set(); state.verAnalise = false; state.czUp = null; if (FRENTE(rota) !== "coldmail") state.cmBusca = ""; if (FRENTE(rota) !== "coldzap") state.czBuscaLista = ""; if (FRENTE(rota) !== "institucional") state.instBusca = "";
-  try { const h = hashDe(rota); history.replaceState(null, "", h ? "#" + h : location.pathname); } catch (e) {}
+}
+/* Abre uma tela. Cada tela vira um passo no histórico do navegador, então o Voltar (do navegador ou do celular) volta tela
+   por tela, e não sai do painel. substituir = true troca o passo atual (usado depois de salvar ou excluir, para o Voltar
+   não reabrir o formulário nem um item excluído). A posição da rolagem fica guardada para o Voltar devolver no mesmo lugar. */
+function ir(rota, substituir) {
+  const antes = hashDe(state.rota);
+  prepararRota(rota);
+  try {
+    const h = hashDe(rota); const url = h ? "#" + h : location.pathname;
+    if (substituir || h === antes) history.replaceState({ y: 0 }, "", url);
+    else { history.replaceState({ ...(history.state || {}), y: window.scrollY }, ""); history.pushState({ y: 0 }, "", url); }
+  } catch (e) {}
   render(); window.scrollTo(0, 0);
 }
 function rotaDoHash() {
@@ -491,7 +503,7 @@ async function salvarFid(form) {
     else { did = "fd-" + Date.now().toString(36); await db.collection("disparos").doc(did).set({ ...dados, criado_em: agora }); }
     const ex = state.disparos.find((x) => x.id === did);
     if (ex) Object.assign(ex, dados); else state.disparos.push({ id: did, ...dados, criado_em: agora });
-    ir({ tipo: "disparo", id: did });
+    ir({ tipo: "disparo", id: did }, true);
   } catch (e) {
     if (btn) btn.disabled = false;
     aviso(semPermissao(e) ? "Você tem acesso só de leitura a este painel." : "Não foi possível salvar. Tente de novo em alguns segundos.", true);
@@ -500,7 +512,7 @@ async function salvarFid(form) {
 async function apagarFid(id, btn) {
   const d = state.disparos.find((x) => x.id === id); if (!d || !d.manual || !db) return;
   btn.disabled = true;
-  try { await db.collection("disparos").doc(id).delete(); state.disparos = state.disparos.filter((x) => x.id !== id); ir({ tipo: "visao", id: visaoDe(d) }); }
+  try { await db.collection("disparos").doc(id).delete(); state.disparos = state.disparos.filter((x) => x.id !== id); ir({ tipo: "visao", id: visaoDe(d) }, true); }
   catch (e) { btn.disabled = false; const m = $("formMsg"); if (m) { m.textContent = "Não foi possível excluir agora."; m.classList.add("err"); } }
 }
 
@@ -754,7 +766,7 @@ async function salvarInst(form) {
   try {
     if (form.dataset.id) await db.collection("institucional").doc(form.dataset.id).update(dados);
     else await db.collection("institucional").doc("in-" + Date.now().toString(36)).set({ ...dados, criado_em: agora });
-    ir({ tipo: "institucional" });
+    ir({ tipo: "institucional" }, true);
   } catch (e) {
     if (btn) btn.disabled = false;
     aviso(semPermissao(e) ? "Você tem acesso só de leitura a este painel." : "Não foi possível salvar. Tente de novo em alguns segundos.", true);
@@ -762,7 +774,7 @@ async function salvarInst(form) {
 }
 async function apagarInst(id, btn) {
   btn.disabled = true;
-  try { await db.collection("institucional").doc(id).delete(); ir({ tipo: "institucional" }); }
+  try { await db.collection("institucional").doc(id).delete(); ir({ tipo: "institucional" }, true); }
   catch (e) { btn.disabled = false; const m = $("formMsg"); if (m) { m.textContent = "Não foi possível excluir agora."; m.classList.add("err"); } }
 }
 
@@ -1236,7 +1248,7 @@ async function salvarCzForm(form) {
     const lst = state.cz.find((x) => x.id === id);
     if (lst) Object.assign(lst, dados); else state.cz.push({ id, ...dados, origem: "painel", criado_em: agora });
     novos.forEach((l) => { if (!state.czLeads.some((x) => x._id === l._id)) state.czLeads.push(l); });
-    ir({ tipo: "czd", id });
+    ir({ tipo: "czd", id }, true);
   } catch (e) {
     if (btn) btn.disabled = false;
     aviso(semPermissao(e) ? "Você tem acesso só de leitura a este painel." : "Não foi possível salvar. Tente de novo em alguns segundos.", true);
@@ -1249,7 +1261,7 @@ async function apagarCzLista(id, btn) {
   try {
     for (let i = 0; i < refs.length; i += 400) { const lote = db.batch(); refs.slice(i, i + 400).forEach((r) => lote.delete(r)); await lote.commit(); }
     state.czLeads = state.czLeads.filter((l) => l.disparo !== id); state.cz = state.cz.filter((x) => x.id !== id);
-    ir({ tipo: "coldzap" });
+    ir({ tipo: "coldzap" }, true);
   } catch (e) {
     btn.disabled = false; const m = $("czFormMsg");
     if (m) { m.textContent = semPermissao(e) ? "Você tem acesso só de leitura a este painel." : "Não foi possível excluir agora."; m.classList.add("err"); }
@@ -1478,7 +1490,7 @@ async function salvarCm(form) {
     const k = normChave(dados.chave) || "sem-id:" + dados.empresa.toLowerCase();
     const i = form.dataset.id ? state.cm.findIndex((x) => x.id === form.dataset.id) : -1;
     if (i >= 0) Object.assign(state.cm[i], dados);
-    ir({ tipo: "cmf", id: k });
+    ir({ tipo: "cmf", id: k }, true);
   } catch (e) {
     if (btn) btn.disabled = false;
     aviso(semPermissao(e) ? "Você tem acesso só de leitura a este painel." : "Não foi possível salvar. Tente de novo em alguns segundos.", true);
@@ -2225,6 +2237,7 @@ document.addEventListener("focusout", (ev) => {
   const tr = el.closest("tr[data-id]"); const l = state.leads.find((x) => x._id === tr.dataset.id);
   if (l && (l.obs || "") !== el.value) salvar(tr.dataset.id, "obs", el.value, el);
 });
+window.addEventListener("popstate", (ev) => { if (!iniciado) return; prepararRota(rotaDoHash()); render(); const y = ev.state?.y || 0; requestAnimationFrame(() => window.scrollTo(0, y)); });
 window.addEventListener("hashchange", () => { if (!iniciado) return; const r = rotaDoHash(); if (hashDe(r) !== hashDe(state.rota)) { state.rota = r; render(); } });
 
 /* ---------- login e dados (Firebase) ----------
