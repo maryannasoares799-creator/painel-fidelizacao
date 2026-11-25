@@ -176,7 +176,7 @@ function abas() {
     + grupo(item(["fidelizacao", "inicio", "ti-refresh", "Reativação", state.disparos.length]) + sub("produto") + sub("necessidade")) + [
     ["institucional", "institucional", "ti-building", "Institucional", state.inst.length],
     ["coldmail", "coldmail", "ti-mail-forward", "Cold mail", cmFornecedores().length],
-    ["coldzap", "coldzap", "ti-brand-whatsapp", "WhatsApp", state.cz.length],
+    ["coldzap", "coldzap", "ti-brand-whatsapp", "ColdZap", state.cz.length],
   ].map((x) => grupo(item(x))).join("");
 }
 function crumbs() {
@@ -197,9 +197,9 @@ function crumbs() {
   if (r.tipo === "cm" || r.tipo === "cm-novo") { const d = r.tipo === "cm" ? state.cm.find((x) => x.id === r.id) : null; const k = d ? normChave(d.chave) || "sem-id:" + String(d.empresa || "").trim().toLowerCase() : r.id; const fo = k ? cmFornecedores().find((x) => x.k === k) : null;
     parts = [`<button type="button" data-ir="coldmail">Cold mail</button>`, ...(fo ? [`<button type="button" data-ir="cmf:${esc(fo.k)}">${esc(fo.empresa)}</button>`] : []), `<span aria-current="page">${r.tipo === "cm" ? "Editar envio" : "Novo envio"}</span>`]; }
   if (r.tipo === "inst" || r.tipo === "inst-novo") parts = [`<button type="button" data-ir="institucional">Institucional</button>`, `<span aria-current="page">${r.tipo === "inst-novo" ? "Novo disparo" : "Ficha do disparo"}</span>`];
-  if (r.tipo === "cz-nova") parts = [`<button type="button" data-ir="coldzap">WhatsApp</button>`, `<span aria-current="page">Nova lista</span>`];
-  if (r.tipo === "cz-editar") parts = [`<button type="button" data-ir="coldzap">WhatsApp</button>`, `<button type="button" data-ir="czd:${esc(r.id)}">${esc(state.cz.find((x) => x.id === r.id)?.empresa || "Lista")}</button>`, `<span aria-current="page">Editar lista</span>`];
-  if (r.tipo === "czd") parts = [`<button type="button" data-ir="coldzap">WhatsApp</button>`, `<span aria-current="page">${esc(state.cz.find((x) => x.id === r.id)?.empresa || "Lista")}</span>`];
+  if (r.tipo === "cz-nova") parts = [`<button type="button" data-ir="coldzap">ColdZap</button>`, `<span aria-current="page">Nova lista</span>`];
+  if (r.tipo === "cz-editar") parts = [`<button type="button" data-ir="coldzap">ColdZap</button>`, `<button type="button" data-ir="czd:${esc(r.id)}">${esc(state.cz.find((x) => x.id === r.id)?.empresa || "Lista")}</button>`, `<span aria-current="page">Editar lista</span>`];
+  if (r.tipo === "czd") parts = [`<button type="button" data-ir="coldzap">ColdZap</button>`, `<span aria-current="page">${esc(state.cz.find((x) => x.id === r.id)?.empresa || "Lista")}</span>`];
   c.innerHTML = parts.join(sep);
 }
 
@@ -237,10 +237,10 @@ function situacao(d) {
 const VISOES = {
   produto: { nome: "Por produto", ico: "ti-box", curto: "Outras opções do que o lead cotou",
     texto: "Quem cotou um produto recebe as outras opções desse mesmo produto: tipos, modelos, medidas e materiais. Exemplo: para quem cotou pallet de madeira, apresentamos as opções em plástico, metal, papelão e descartável, em diversas medidas, para compra ou locação.",
-    base: "Quem cotou o produto no site.", oferta: "As outras opções do mesmo produto. O tipo que o lead cotou sai da lista." },
+    base: "Quem cotou o produto na plataforma.", oferta: "As outras opções do mesmo produto. O tipo que o lead cotou sai da lista." },
   necessidade: { nome: "Por segmento", ico: "ti-puzzle", curto: "O que o segmento do lead costuma usar",
     texto: "A base é definida por segmento, e a oferta reúne os produtos que esse tipo de empresa costuma comprar. Exemplo: para uma distribuidora ou fábrica de bebidas, apresentamos garrafa PET, câmara fria e filme termoencolhível, itens que esse segmento cota bem acima da média.",
-    base: "Todos os leads de um segmento (identificado pelo nome da empresa) que já cotaram no site.", oferta: "Os produtos que o segmento cota acima da média no site, mais os complementos de quem usa o produto." },
+    base: "Todos os leads de um segmento (identificado pelo nome da empresa) que já cotaram na plataforma.", oferta: "Os produtos que o segmento cota acima da média na plataforma, mais os complementos de quem usa o produto." },
 };
 const visaoDe = (d) => (d.visao === "necessidade" ? "necessidade" : "produto");
 const chipVisao = (d) => `<span class="chip info sem-ponto"><i class="ti ${VISOES[visaoDe(d)].ico}" aria-hidden="true" style="font-size:13px"></i>${VISOES[visaoDe(d)].nome}</span>`;
@@ -252,7 +252,7 @@ const maiuscula = (t) => { const x = String(t || "").trim(); return x ? x[0].toU
 const rotuloAnalise = () => (state.verAnalise ? `<i class="ti ti-eye-off" aria-hidden="true"></i>Esconder os números da análise` : `<i class="ti ti-chart-dots" aria-hidden="true"></i>Ver os números da análise`);
 const barraAnalise = (legenda) => `<div class="analise-barra"><span class="note so-analise">${legenda}</span><button type="button" class="btn secundario" data-analise="1" aria-pressed="${state.verAnalise ? "true" : "false"}">${rotuloAnalise()}</button></div>`;
 const blocoOferta = (corpo) => `<div class="oferta-bloco${state.verAnalise ? " com-analise" : ""}">${corpo}</div>`;
-const matrizProduto = (p) => (p.estrategia?.length ? blocoOferta(`${barraAnalise("Por que essas ofertas: as regras e a afinidade medida no site.")}
+const matrizProduto = (p) => (p.estrategia?.length ? blocoOferta(`${barraAnalise("Por que essas ofertas: as regras e a afinidade medida na plataforma.")}
     ${p.estrategia_nota ? `<p class="analise-nota so-analise"><i class="ti ti-info-circle" aria-hidden="true"></i>${esc(p.estrategia_nota)}</p>` : ""}
     <div class="de-para">
     <div class="de-para-cab" aria-hidden="true"><span>Se o lead cotou ${esc(p.nome.toLowerCase())}</span><span>Oferecer</span></div>
@@ -266,7 +266,7 @@ function matrizNecessidade(p) {
     <ul>${(g.itens || []).map((e) => `<li><div><b>${esc(e.linha)}</b>${e.oferta && !igual(e.oferta, e.linha) ? `<span>${esc(e.oferta)}</span>` : ""}${e.dado && g.geral ? `<small class="so-analise">${esc(e.dado)}</small>` : ""}</div>${e.dado && !g.geral ? `<span class="dado-seg so-analise">${esc(e.dado)}</span>` : ""}</li>`).join("")}</ul>
     ${g.evitar ? `<p class="evitar"><i class="ti ti-ban" aria-hidden="true"></i><span class="sem-analise">Não oferecer: ${esc(curto(g.evitar))}</span><span class="so-analise">Não oferecer: ${esc(g.evitar)}</span></p>` : ""}</article>`;
   const ordem = [...grupos.filter((g) => g.geral), ...grupos.filter((g) => !g.geral)];
-  return blocoOferta(`${barraAnalise("“x” = quantas vezes mais o segmento cota o produto do que um lead qualquer do site · leads = quantos já cotaram (poucos leads pedem cautela)")}
+  return blocoOferta(`${barraAnalise("“x” = quantas vezes mais o segmento cota o produto do que um lead qualquer da plataforma · leads = quantos já cotaram (poucos leads pedem cautela)")}
     <div class="segmentos">${ordem.map(card).join("")}</div>`);
 }
 /* Quem recebeu o quê: classes A, B e C dos leads do disparo e quantos ficaram fora. */
@@ -328,7 +328,7 @@ function cardVisao(k) {
 
 /* ---------- telas (reativação) ---------- */
 function telaInicio() {
-  cab("Reativação", "Quem já cotou no site recebe e-mail e WhatsApp com novas ofertas, em duas visões: por produto (outras opções do que cotou) e por segmento (o que o segmento dele costuma usar).");
+  cab("Reativação", "Quem já cotou na plataforma recebe e-mail e WhatsApp com novas ofertas, em duas visões: por produto (outras opções do que cotou) e por segmento (o que o segmento dele costuma usar).");
   const total = somar(state.disparos.map((d) => metricasDisparo(d).geral));
   const pastas = [...state.pastas].sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99));
   const rel = state.downloads && window.XLSX ? painel("h-rel", "ti-file-spreadsheet", "Relatório mensal", "", `<p class="note">Disparos enviados no mês, resultados por canal e as respostas recebidas, em Excel.</p>
@@ -848,7 +848,7 @@ function renderCzLista() {
   const c = $("czBuscaListaCont"); if (c) c.textContent = czContagemLista(fl);
 }
 function telaColdzap() {
-  cab("WhatsApp", "A parte da base de um cold mail por fornecedor que vai pelo WhatsApp, enviada à mão. Cada lista mostra lead a lead quem recebeu, quem respondeu e quais respostas viraram orçamento.");
+  cab("ColdZap", "A parte da base de um cold mail por fornecedor que vai pelo WhatsApp, enviada à mão. Cada lista mostra lead a lead quem recebeu, quem respondeu e quais respostas viraram orçamento.");
   if (!state.carregado.cz) return carregando();
   const ds = [...state.cz].sort((a, b) => (b.data || "").localeCompare(a.data || ""));
   const tot = czSomar(ds.map(czMetricas));
@@ -856,7 +856,7 @@ function telaColdzap() {
     ${czPodeCriar() ? `<div class="acoes"><button type="button" class="btn" data-ir="cz-nova"><i class="ti ti-plus" aria-hidden="true"></i>Nova lista</button><span class="note">Suba a planilha com os leads do WhatsApp e o painel monta a lista.</span></div>` : ""}
     ${secao("h-zt", "ti-chart-bar", "Todas as listas", `${ds.length} lista(s) de WhatsApp`, czKpis(tot))}
     <div class="grade-2">
-      ${painel("h-zf", "ti-filter", "Funil do WhatsApp", "Todas as listas", funil(czEtapas(tot), "var(--f-cz)"))}
+      ${painel("h-zf", "ti-filter", "Funil do ColdZap", "Todas as listas", funil(czEtapas(tot), "var(--f-cz)"))}
       ${painel("h-zp", "ti-progress-check", "Andamento dos envios", `${tot.enviados + tot.nao_existe} de ${tot.total} tratados`, `<div class="cz" style="display:grid;gap:14px">${ds.map((d) => { const m = czMetricas(d);
         return `<div style="display:grid;gap:6px"><div style="display:flex;justify-content:space-between;gap:8px;font-size:13.5px"><button type="button" class="linkbtn" style="text-decoration:none;font-weight:600;color:var(--ink)" data-ir="czd:${esc(d.id)}">${esc(d.empresa)}</button><span class="note">${m.enviados + m.nao_existe}/${m.total}</span></div>${czProgresso(m)}</div>`; }).join("") || `<p class="note">Nenhuma lista ainda.</p>`}</div>`)}
     </div>
@@ -866,7 +866,7 @@ function telaColdzap() {
 }
 function telaCzDisparo(id) {
   const d = state.cz.find((x) => x.id === id);
-  if (!d) { cab("WhatsApp", ""); return state.carregado.cz ? vazio("ti-list-search", "Esta lista não existe.", `<button type="button" class="linkbtn" data-ir="coldzap">Voltar para o WhatsApp</button>`) : carregando(); }
+  if (!d) { cab("ColdZap", ""); return state.carregado.cz ? vazio("ti-list-search", "Esta lista não existe.", `<button type="button" class="linkbtn" data-ir="coldzap">Voltar para o ColdZap</button>`) : carregando(); }
   cab(d.empresa, d.produto || "");
   const m = czMetricas(d);
   return `<div class="pilha">
@@ -988,7 +988,7 @@ async function baixarCz(id, btn) {
     ...ls.map((l) => [l.ordem, l.nome, l.empresa, l.celular, l.email, l.produto_cotado || "", fmtData(l.cotou_em), l.o_que_pediu || "", l.mensagem || "",
       l.numero ? `https://wa.me/${l.numero}?text=${encodeURIComponent(l.mensagem || "")}` : "", ENVIO[l.envio || ""], STATUS[l.status || "aguardando"], l.orcamento ? "Sim" : "Não", l.obs || ""])],
     [7, 14, 28, 16, 30, 24, 14, 40, 60, 30, 18, 16, 11, 36]);
-  await salvarXlsx(wb, `WhatsApp - ${d?.empresa || "lista"} ${d?.chave || ""}.xlsx`.replace(/\s+\.xlsx$/, ".xlsx"), "czMsg");
+  await salvarXlsx(wb, `ColdZap - ${d?.empresa || "lista"} ${d?.chave || ""}.xlsx`.replace(/\s+\.xlsx$/, ".xlsx"), "czMsg");
   btn.disabled = false;
 }
 
@@ -1155,7 +1155,7 @@ function czResumoHtml() {
     <td class="nowrap">${esc(l.celular)}</td><td>${esc(l.produto_cotado || "—")}${l.cotou_em ? `<small class="note"> · ${fmtData(l.cotou_em)}</small>` : ""}</td>
     <td>${l.msgDe === "planilha" ? `<span class="chip ok">Da planilha</span>` : l.msgDe === "padrao" ? `<span class="chip info">Padrão</span>` : `<span class="chip neutro">Sem mensagem</span>`}</td></tr>`;
   return `<div class="cz-resumo"><span><b>${ok.length}</b> lead(s) entram na lista</span>${fora.length ? `<span><b>${fora.length}</b> fica(m) de fora</span>` : ""}${semMsg ? `<span><b>${semMsg}</b> sem mensagem</span>` : ""}</div>
-    ${ok.length > 60 ? `<p class="cz-alerta atencao">A lista de WhatsApp costuma ter de 20 a 30 leads, e esta planilha tem ${ok.length}. Confira se é só a parte da base que vai pelo WhatsApp.</p>` : ""}
+    ${ok.length > 60 ? `<p class="cz-alerta atencao">O ColdZap costuma ter de 20 a 30 leads, e esta planilha tem ${ok.length}. Confira se é só a parte da base que vai pelo WhatsApp.</p>` : ""}
     ${semMsg ? `<p class="note">Sem mensagem, o link abre a conversa em branco. Se quiser, escreva a mensagem padrão acima.</p>` : ""}
     ${ok.length ? `<div class="tbl-wrap"><table><thead><tr><th class="num">#</th><th>Lead</th><th>Celular</th><th>O que cotou</th><th>Mensagem</th></tr></thead><tbody>${ok.slice(0, MAX).map(linha).join("")}</tbody></table></div>${ok.length > MAX ? `<p class="note">Mostrando os ${MAX} primeiros de ${ok.length}.</p>` : ""}` : ""}
     ${ok[0]?.mensagem ? `<details class="msg"><summary>Ver a mensagem do 1º lead</summary><div class="msg-txt">${esc(ok[0].mensagem)}</div></details>` : ""}
@@ -1173,14 +1173,14 @@ function czNovoId(chave) {
 function telaCzForm(id, chavePre) {
   const novo = !id; const d0 = novo ? null : state.cz.find((x) => x.id === id);
   const voltar = novo ? (chavePre ? `cmf:${esc(chavePre)}` : "coldzap") : `czd:${esc(id)}`;
-  if (!state.carregado.cz || !state.carregado.czl) { cab("WhatsApp", ""); return carregando(); }
-  if (!czPodeCriar()) { cab("WhatsApp", ""); return vazio("ti-lock", "Só quem opera os disparos cria e edita as listas de WhatsApp.", `<button type="button" class="linkbtn" data-ir="coldzap">Voltar para o WhatsApp</button>`); }
-  if (!novo && !d0) { cab("WhatsApp", ""); return vazio("ti-list-search", "Esta lista não existe.", `<button type="button" class="linkbtn" data-ir="coldzap">Voltar para o WhatsApp</button>`); }
+  if (!state.carregado.cz || !state.carregado.czl) { cab("ColdZap", ""); return carregando(); }
+  if (!czPodeCriar()) { cab("ColdZap", ""); return vazio("ti-lock", "Só quem opera os disparos cria e edita listas do ColdZap.", `<button type="button" class="linkbtn" data-ir="coldzap">Voltar para o ColdZap</button>`); }
+  if (!novo && !d0) { cab("ColdZap", ""); return vazio("ti-list-search", "Esta lista não existe.", `<button type="button" class="linkbtn" data-ir="coldzap">Voltar para o ColdZap</button>`); }
   const semLista = cmFornecedores().filter((f) => !f.cz);
   const fo = novo && chavePre ? cmFornecedores().find((x) => x.k === chavePre) : null;
   const d = novo ? { empresa: fo?.empresa || "", chave: fo?.chave || "", produto: fo?.produto || "", solicitante: fo?.solicitante || "", data: "", remetente: "", base: "" } : d0;
   const nAtuais = novo ? 0 : state.czLeads.filter((l) => l.disparo === id).length;
-  cab(novo ? "Nova lista do WhatsApp" : `Editar lista · ${d.empresa}`, novo
+  cab(novo ? "Nova lista do ColdZap" : `Editar lista · ${d.empresa}`, novo
     ? "Preencha o fornecedor e suba a planilha com os leads que vão pelo WhatsApp. O painel monta um lead por linha, com o link da conversa e a mensagem."
     : "Corrija os dados da lista ou acrescente leads de outra planilha. Os leads e as marcações que já estão aqui continuam.");
   const f = (k, rot, tipo, val, extra = "") => `<label class="campo" for="z_${k}">${rot}<input type="${tipo}" id="z_${k}" value="${esc(val ?? "")}"${extra}></label>`;
@@ -1365,14 +1365,14 @@ function renderCmLista() {
 }
 
 function telaColdmail() {
-  cab("Cold mail", "Cartas personalizadas por fornecedor, enviadas pelo BillionMail. Cada fornecedor reúne os envios da campanha (base inteira ou metades A e B); a parte da base que vai pelo WhatsApp tem tela própria.");
+  cab("Cold mail", "Cartas personalizadas por fornecedor, enviadas pelo BillionMail. Cada fornecedor reúne os envios da campanha (base inteira ou metades A e B); a parte da base que vai pelo WhatsApp fica no ColdZap.");
   if (!state.carregado.inst) return carregando();
   const forn = cmFornecedores(); const s = cmTotais();
   const agenda = state.cm.filter((d) => ["hoje", "programado", "sem_metricas", "sem_data"].includes(cmSituacao(d).k))
     .sort((a, b) => (a.data_disparo || "9999").localeCompare(b.data_disparo || "9999"));
   return `<div class="pilha">
     <div class="acoes">${state.podeEditar ? `<button type="button" class="btn" data-ir="cm-novo"><i class="ti ti-plus" aria-hidden="true"></i>Novo cold mail</button>` : ""}${ajuda('Os números do BillionMail podem mudar: abra o fornecedor e use "Editar" para atualizar.')}</div>
-    ${secao("h-cmt", "ti-chart-bar", "Resultado do e-mail", "Funil dos envios com números do BillionMail · o WhatsApp tem tela própria", cmKpis(s, forn.length))}
+    ${secao("h-cmt", "ti-chart-bar", "Resultado do e-mail", "Funil dos envios com números do BillionMail · o WhatsApp fica no ColdZap", cmKpis(s, forn.length))}
     <div class="grade-2">
       ${painel("h-cmf", "ti-filter", "Funil do cold mail", "Só o e-mail", funil(instEtapas(s), "var(--f-cm)"))}
       ${painel("h-cma", "ti-calendar-event", "Agenda", agenda.length ? `${agenda.length} envio(s)` : "", agenda.length ? `<ul class="pendencias">${agenda.map((d) => { const k = cmSituacao(d).k;
@@ -1411,12 +1411,12 @@ function telaCmFornecedor(k) {
     ${secao("h-cmr", "ti-chart-bar", "Resultado do e-mail", "Envios com números do BillionMail", cmKpis(tot, null))}
     ${secao("h-cmv", "ti-mail-forward", "Envios", `${f.envios.length} envio(s)`, `<div class="envios">${f.envios.map(envio).join("")}</div>
       ${state.podeEditar ? `<button type="button" class="btn secundario" style="justify-self:start;margin-top:14px" data-ir="cm-novo:${esc(f.k)}"><i class="ti ti-plus" aria-hidden="true"></i>Novo envio deste fornecedor</button>` : ""}`)}
-    ${!f.cz && czPodeCriar() ? `<div class="analise-nota"><i class="ti ti-brand-whatsapp" aria-hidden="true"></i><span>A parte da base que vai pelo WhatsApp ainda não tem lista de WhatsApp. <button type="button" class="linkbtn" data-ir="cz-nova:${esc(f.k)}">Criar a lista do WhatsApp</button></span></div>` : ""}
+    ${!f.cz && czPodeCriar() ? `<div class="analise-nota"><i class="ti ti-brand-whatsapp" aria-hidden="true"></i><span>A parte da base que vai pelo WhatsApp ainda não tem lista no ColdZap. <button type="button" class="linkbtn" data-ir="cz-nova:${esc(f.k)}">Criar a lista do ColdZap</button></span></div>` : ""}
     ${f.cz ? (() => { const limpa = f.envios.reduce((a, d) => a + (num(d.base_limpa) || 0), 0); const datasEmail = [...new Set(f.envios.map((d) => d.data_disparo).filter(Boolean))].sort().map(fmtData).join(" e ");
       return `<section class="painel" aria-labelledby="h-cmb"><div class="section-head"><h2 id="h-cmb"><i class="ti ti-arrows-split" aria-hidden="true"></i>Base dividida em dois canais</h2><span class="note">${limpa + czm.total} leads no total · cada canal tem a sua data</span></div>
       <div class="canais-base"><div class="cm"><i class="ti ti-mail-forward" aria-hidden="true"></i><div><b>${limpa}</b><span>pelo e-mail (Cold mail)</span><small>Disparo do e-mail: ${datasEmail || "sem data"}</small></div></div>
-      <div class="cz"><i class="ti ti-brand-whatsapp" aria-hidden="true"></i><div><b>${czm.total}</b><span>pelo WhatsApp</span><small>Disparo do WhatsApp: ${fmtData(f.cz.data) || "sem data"}</small></div></div></div>
-      <p class="note">Os números do WhatsApp ficam na tela WhatsApp e não entram no resultado do e-mail. <button type="button" class="linkbtn" data-ir="czd:${esc(f.cz.id)}">Ver a lista do WhatsApp</button></p></section>`; })() : ""}
+      <div class="cz"><i class="ti ti-brand-whatsapp" aria-hidden="true"></i><div><b>${czm.total}</b><span>pelo WhatsApp (ColdZap)</span><small>Disparo do WhatsApp: ${fmtData(f.cz.data) || "sem data"}</small></div></div></div>
+      <p class="note">Os números do WhatsApp ficam no ColdZap e não entram no resultado do e-mail. <button type="button" class="linkbtn" data-ir="czd:${esc(f.cz.id)}">Ver a lista no ColdZap</button></p></section>`; })() : ""}
   </div>`;
 }
 
@@ -1454,7 +1454,7 @@ function telaCmForm(id, chavePre) {
       ${f("clicked_pct", "Clicked % (cliques)", "text", pctv(bm.clicked_pct), ' inputmode="decimal"')}
       ${f("bounced_pct", "Bounced %", "text", pctv(bm.bounced_pct), ' inputmode="decimal"')}
     </div></fieldset>
-    <fieldset><legend>Retorno do e-mail</legend><p class="note" style="margin:0">Respostas e orçamentos que vieram pelo e-mail. O WhatsApp da mesma base é marcado lead a lead na tela WhatsApp.</p><div class="campos">
+    <fieldset><legend>Retorno do e-mail</legend><p class="note" style="margin:0">Respostas e orçamentos que vieram pelo e-mail. O WhatsApp da mesma base é marcado lead a lead no ColdZap.</p><div class="campos">
       ${f("respostas", "Respostas", "number", d.respostas, ' min="0" step="1" inputmode="numeric"')}
       ${f("orcamentos", "Orçamentos", "number", d.orcamentos, ' min="0" step="1" inputmode="numeric"')}
       <label class="campo largo" for="c_obs">Observação<textarea id="c_obs" rows="3"${dis}>${esc(d.obs || "")}</textarea></label>
@@ -1520,7 +1520,7 @@ function render() {
 /* ---------- as quatro frentes ---------- */
 const FRENTES_INFO = {
   fidelizacao: { cls: "fid", ico: "ti-refresh", nome: "Reativação", sub: "Por produto e por segmento", destino: "inicio",
-    para_quem: "Quem já cotou no site. Por produto: quem cotou aquele produto. Por segmento: empresas de um segmento.",
+    para_quem: "Quem já cotou na plataforma. Por produto: quem cotou aquele produto. Por segmento: empresas de um segmento.",
     canal: "E-mail pelo BillionMail para a base e WhatsApp para os leads de maior potencial.",
     mensagem: "Por produto: as outras opções do que o lead cotou. Por segmento: produtos que o segmento costuma usar. Carta do Soluções por grupo, sem citar fornecedor.",
     quem_envia: "Growth",
@@ -1532,12 +1532,12 @@ const FRENTES_INFO = {
     quem_envia: "Growth, a pedido de um solicitante",
     medida: "% lido, cliques, respostas e orçamentos. Conversão = orçamentos ÷ respostas." },
   coldmail: { cls: "cm", ico: "ti-mail-forward", nome: "Cold mail", sub: "Carta por fornecedor", destino: "coldmail",
-    para_quem: "A base de leads que já cotou o produto do fornecedor, inteira ou dividida em metades A e B.",
-    canal: "E-mail pelo BillionMail. A base é dividida: 20 a 30 leads vão pelo WhatsApp e o restante pelo e-mail.",
+    para_quem: "Leads que já cotaram na plataforma, com a base inteira ou dividida em metades A e B.",
+    canal: "E-mail pelo BillionMail. A base é dividida: 20 a 30 leads vão pelo WhatsApp (ColdZap) e o restante pelo e-mail.",
     mensagem: "Carta personalizada que cita o fornecedor e o produto dele.",
     quem_envia: "Growth, a pedido de um solicitante",
     medida: "Entregues, % lido, cliques, respostas e orçamentos do e-mail." },
-  coldzap: { cls: "cz", ico: "ti-brand-whatsapp", nome: "WhatsApp", sub: "Leads de maior intenção", destino: "coldzap",
+  coldzap: { cls: "cz", ico: "ti-brand-whatsapp", nome: "ColdZap", sub: "WhatsApp do cold mail", destino: "coldzap",
     para_quem: "20 a 30 leads separados da base de cada cold mail por fornecedor. O restante da base recebe o e-mail (Cold mail).",
     canal: "WhatsApp, enviado à mão, lead a lead.",
     mensagem: "Mensagem personalizada sobre o produto do fornecedor.",
@@ -1559,7 +1559,7 @@ const GLOSSARIO = [
   ["ti-thumb-up", "Interessados", "Responderam com interesse em cotar."],
   ["ti-file-invoice", "Orçamentos gerados", "Respostas que viraram orçamento cadastrado para os fornecedores."],
   ["ti-percentage", "Conversão", "Orçamentos ÷ respostas."],
-  ["ti-phone-off", "Número não existe", "Celular que não tem WhatsApp."],
+  ["ti-phone-off", "Número não existe", "No ColdZap, celular que não tem WhatsApp."],
 ];
 /* Totais das quatro frentes. Com um mês ("2026-11"), entram só os disparos que saíram naquele mês:
    as respostas e os orçamentos contam no mês em que o disparo saiu, não no dia em que a resposta chegou. */
@@ -1583,9 +1583,9 @@ const compara = (v, ant, nomeAnt) => { const d = v - ant;
   return `<span class="delta"><i class="ti ${d > 0 ? "ti-trending-up" : d < 0 ? "ti-trending-down" : "ti-equal"}" aria-hidden="true"></i>${d > 0 ? "+" + d : d < 0 ? d : "igual"} vs ${nomeAnt}</span>`; };
 /* As quatro frentes em uma linha cada: para quem, canal e o que medimos. */
 const RESUMO_FRENTES = [
-  ["fidelizacao", "Leads que já cotaram no site", "E-mail e WhatsApp", "Respostas, interessados e orçamentos"],
+  ["fidelizacao", "Leads que já cotaram na plataforma", "E-mail e WhatsApp", "Respostas, interessados e orçamentos"],
   ["institucional", "Uma base escolhida por segmento", "E-mail", "% lido, respostas e orçamentos"],
-  ["coldmail", "Quem cotou o produto de um fornecedor", "E-mail que cita o fornecedor", "% lido, respostas e orçamentos"],
+  ["coldmail", "Leads que já cotaram na plataforma", "E-mail que cita o fornecedor", "% lido, respostas e orçamentos"],
   ["coldzap", "20 a 30 leads de cada cold mail", "WhatsApp, enviado à mão", "Enviados, respostas e orçamentos"],
 ];
 /* O que falta enviar, lançar ou conferir, calculado a partir dos dados. Alertas (números que não fecham) vêm primeiro. */
@@ -1619,7 +1619,7 @@ function atividades() {
     if (d.enviado_em) ev.push({ data: d.enviado_em, cls: "fid", t: `${pa} · ${d.nome} enviado`, s: `Reativação · ${metricasDisparo(d).geral.total} leads`, ir: `disparo:${d.id}` });
     if (d.data) ev.push({ data: d.data, cls: "fid", t: `${pa} · ${d.nome} preparado`, s: `Reativação · ${metricasDisparo(d).geral.total} leads`, ir: `disparo:${d.id}` }); });
   state.cz.forEach((d) => { const m = czMetricas(d); const k = czSituacao(d, m).k;
-    ev.push({ data: d.data, cls: "cz", t: `WhatsApp ${k === "disparado" ? "disparado" : k === "programado" ? "programado" : k === "hoje" ? "de hoje" : "atrasado"}: ${d.empresa}`, s: `WhatsApp · ${m.total} leads${m.pendentes ? ` · ${m.pendentes} sem envio` : ""}`, ir: `czd:${d.id}` }); });
+    ev.push({ data: d.data, cls: "cz", t: `WhatsApp ${k === "disparado" ? "disparado" : k === "programado" ? "programado" : k === "hoje" ? "de hoje" : "atrasado"}: ${d.empresa}`, s: `ColdZap · ${m.total} leads${m.pendentes ? ` · ${m.pendentes} sem envio` : ""}`, ir: `czd:${d.id}` }); });
   state.cm.forEach((d) => { if (d.data_disparo) ev.push({ data: d.data_disparo, cls: "cm", t: `Cold mail ${d.data_disparo > hojeLocal() ? "programado" : "enviado"}: ${String(d.empresa || "").trim()}`, s: `Cold mail · ${baseNome(d).toLowerCase()}${num(d.base_limpa) != null ? " · " + num(d.base_limpa) + " e-mails" : ""}`, ir: `cmf:${normChave(d.chave) || "sem-id:" + String(d.empresa || "").trim().toLowerCase()}` }); });
   state.inst.forEach((d) => { const dt = d.data_disparo || d.data_solicitacao; if (dt) ev.push({ data: dt, cls: "inst", t: `${d.data_disparo ? "Disparo" : "Pedido"} institucional: ${d.segmento || "sem segmento"}`, s: `Institucional${d.solicitante ? " · " + d.solicitante : ""}`, ir: `inst:${d.id}` }); });
   return ev.filter((e) => e.data).sort((a, b) => b.data.localeCompare(a.data));
@@ -1672,9 +1672,9 @@ function telaGeral() {
     </div>
     <section class="hero" aria-labelledby="h-hero">
       <div class="hero-txt"><span class="eyebrow"><i class="ti ti-activity" aria-hidden="true"></i>Growth · disparos ao vivo${mes ? " · " + nomeMes(mes) : ""}</span>
-        <h2 id="h-hero">Reativação de leads e geração de orçamentos para os fornecedores ${ajuda("Acompanhamento consolidado das quatro frentes: Reativação (leads que já cotaram), Institucional (disparos por segmento), Cold mail (carta por fornecedor) e WhatsApp (leads de maior intenção do cold mail).")}</h2></div>
+        <h2 id="h-hero">Reativação de leads e geração de orçamentos para os fornecedores ${ajuda("Acompanhamento consolidado das quatro frentes: Reativação (leads que já cotaram), Institucional (disparos por segmento), Cold mail (carta por fornecedor) e ColdZap (WhatsApp do cold mail).")}</h2></div>
       <div class="hero-stats">
-        ${hs("ti-stack-2", "Disparos e listas", nDisp, `${t.ds.length} reativação · ${t.is.length} institucional · ${t.cs.length} cold mail · ${t.zs.length} WhatsApp`, cmp(nDisp, nAnt))}
+        ${hs("ti-stack-2", "Disparos e listas", nDisp, `${t.ds.length} reativação · ${t.is.length} institucional · ${t.cs.length} cold mail · ${t.zs.length} ColdZap`, cmp(nDisp, nAnt))}
         ${hs("ti-send", "Mensagens enviadas", t.enviados, "e-mail e WhatsApp somados", cmp(t.enviados, ant?.enviados))}
         ${hs("ti-message-circle", "Respostas", t.respostas, `${br(pct(t.respostas, t.enviados))}% das enviadas`, cmp(t.respostas, ant?.respostas))}
         ${hs("ti-file-invoice", "Orçamentos gerados", t.orcamentos, t.respostas ? `${br(pct(t.orcamentos, t.respostas))}% das respostas` : "marcados nas listas", cmp(t.orcamentos, ant?.orcamentos), "destaque")}
@@ -1682,13 +1682,13 @@ function telaGeral() {
       <div class="hero-acoes"><button type="button" class="btn claro" data-ir="estrategia"><i class="ti ti-route" aria-hidden="true"></i>Entender a estratégia</button></div>
     </section>
     <div class="grade-2">
-      ${painel("h-fc", "ti-filter", `Funil consolidado ${ajuda("Cold mail e WhatsApp são canais separados da mesma campanha: a base de cada fornecedor é dividida, com 20 a 30 leads pelo WhatsApp e o restante pelo e-mail (Cold mail).")}`, mes ? `As quatro frentes · ${nomeMes(mes)}` : "As quatro frentes somadas", funil([
+      ${painel("h-fc", "ti-filter", `Funil consolidado ${ajuda("Cold mail e ColdZap são canais separados da mesma campanha: a base de cada fornecedor é dividida, com 20 a 30 leads pelo WhatsApp (ColdZap) e o restante pelo e-mail (Cold mail).")}`, mes ? `As quatro frentes · ${nomeMes(mes)}` : "As quatro frentes somadas", funil([
         { nome: "Enviadas", icone: "ti-send", v: t.enviados }, { nome: "Respostas", icone: "ti-message-circle", v: t.respostas }, { nome: "Orçamentos", icone: "ti-file-invoice", v: t.orcamentos },
       ]) + `<div class="tbl-wrap"><table><thead><tr><th>Frente</th><th class="num">Enviadas</th><th class="num">Respostas</th><th class="num">Orçamentos</th></tr></thead><tbody>
         <tr><td><b>Reativação</b></td><td class="num">${f.enviados}</td><td class="num">${f.respostas}</td><td class="num">${f.pedidos}</td></tr>
         <tr><td><b>Institucional</b></td><td class="num">${i.env}</td><td class="num">${i.respostas}</td><td class="num">${i.orcamentos}</td></tr>
         <tr><td><b>Cold mail</b></td><td class="num">${c.env}</td><td class="num">${c.respostas}</td><td class="num">${c.orcamentos}</td></tr>
-        <tr><td><b>WhatsApp</b></td><td class="num">${z.enviados}</td><td class="num">${z.respostas}</td><td class="num">${z.orcamentos}</td></tr></tbody></table></div>`)}
+        <tr><td><b>ColdZap</b></td><td class="num">${z.enviados}</td><td class="num">${z.respostas}</td><td class="num">${z.orcamentos}</td></tr></tbody></table></div>`)}
       ${painel("h-pend", "ti-checklist", "Pendências", pend.length ? `${pend.length} item(ns)` : "", mostra.length ? `<ul class="pendencias">${mostra.map((x) => `<li class="${x.alerta ? "alerta" : ""}"><span class="pi" aria-hidden="true"><i class="ti ${x.ic}"></i></span><div><button type="button" data-ir="${esc(x.ir)}">${esc(x.t)}</button><span>${esc(x.s)}</span></div></li>`).join("")}</ul>${pend.length > mostra.length ? `<p class="note">E mais ${pend.length - mostra.length}.</p>` : ""}`
         : `<p class="note" style="display:flex;gap:8px;align-items:center"><i class="ti ti-circle-check" style="color:var(--ok);font-size:18px" aria-hidden="true"></i>Nada pendente agora.</p>`)}
     </div>
@@ -1827,7 +1827,7 @@ async function baixar(id, btn) {
     const w1 = XLSX.utils.aoa_to_sheet([["Campo", "Valor"], ...crit]); w1["!cols"] = [{ wch: 26 }, { wch: 100 }];
     XLSX.utils.book_append_sheet(wb, w1, "Critérios");
     if (base?.linhas?.length) {
-      const w2 = XLSX.utils.aoa_to_sheet([["Lead ID", "Nome", "Empresa", "E-mail", "Telefone", "Produto no site", "Data da cotação", "Cotações no período", "Destino", "Motivo (se ficou fora)", "O que pediu"],
+      const w2 = XLSX.utils.aoa_to_sheet([["Lead ID", "Nome", "Empresa", "E-mail", "Telefone", "Produto na plataforma", "Data da cotação", "Cotações no período", "Destino", "Motivo (se ficou fora)", "O que pediu"],
         ...base.linhas.map((l) => [l.lead_id, l.nome, l.empresa, l.email, l.telefone, l.produto_site, l.cotou_em, l.cotacoes, l.destino, l.motivo, l.o_que_pediu])]);
       w2["!cols"] = [10, 20, 30, 34, 18, 24, 14, 12, 16, 36, 70].map((wch) => ({ wch }));
       XLSX.utils.book_append_sheet(wb, w2, "Base completa");
@@ -1918,7 +1918,7 @@ function linhasFrentes(mes) {
     { frente: "Reativação", canal: "WhatsApp", n: t.ds.length, env: fw.enviados, resp: fw.respostas, orc: fw.pedidos },
     { frente: "Institucional", canal: "E-mail", n: t.is.length, env: t.i.env, ent: t.i.entregues, ab: t.i.abertos, cl: t.i.cliques, resp: t.i.respostas, orc: t.i.orcamentos },
     { frente: "Cold mail", canal: "E-mail", n: t.cs.length, env: t.c.env, ent: t.c.entregues, ab: t.c.abertos, cl: t.c.cliques, resp: t.c.respostas, orc: t.c.orcamentos },
-    { frente: "WhatsApp", canal: "WhatsApp", n: t.zs.length, env: t.z.enviados, resp: t.z.respostas, orc: t.z.orcamentos },
+    { frente: "ColdZap", canal: "WhatsApp", n: t.zs.length, env: t.z.enviados, resp: t.z.respostas, orc: t.z.orcamentos },
   ];
 }
 const taxa = (a, b) => (b && a != null ? a / b : null);
@@ -1959,7 +1959,7 @@ async function baixarDadosGeral(btn) {
     lf.forEach((l) => r1.addRow(valoresFrente(l)));
     tot.forEach((l) => { const r = r1.addRow(valoresFrente(l)); r.font = { bold: true }; r.eachCell((c) => { c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: CINZA } }; }); });
     barras(r1, 9, 5, 4 + lf.length, "FF7C3AED"); barras(r1, 13, 5, 4 + lf.length, "FF0D9488");
-    r1.addRow([]); r1.addRow(["Como ler: e-mail e WhatsApp são canais separados (os 20 a 30 leads de cada cold mail vão pelo WhatsApp). Respostas e orçamentos contam no mês do disparo."]).font = { italic: true, color: { argb: "FF5F6F86" } };
+    r1.addRow([]); r1.addRow(["Como ler: e-mail e WhatsApp são canais separados (os 20 a 30 leads de cada cold mail vão pelo WhatsApp, no ColdZap). Respostas e orçamentos contam no mês do disparo."]).font = { italic: true, color: { argb: "FF5F6F86" } };
 
     /* 2. Canais por mês: e-mail x WhatsApp lado a lado */
     const r2 = wb.addWorksheet("Canais por mês"); titulo(r2, "E-mail x WhatsApp, mês a mês", gerado.replace(` · ${periodo}`, " · todos os meses"));
@@ -1985,8 +1985,8 @@ async function baixarDadosGeral(btn) {
         f.resp, f.orc, taxa(f.orc, f.resp), z ? z.enviados : null, z ? z.respostas : null, z ? z.orcamentos : null]); });
     barras(r4, 13, 5, 4 + forns.length, "FF7C3AED");
 
-    /* 5. WhatsApp por lista */
-    const r5 = wb.addWorksheet("WhatsApp"); titulo(r5, "WhatsApp por lista", gerado);
+    /* 5. ColdZap por lista */
+    const r5 = wb.addWorksheet("ColdZap"); titulo(r5, "ColdZap (WhatsApp do cold mail) por lista", gerado);
     tabela(r5, 4, ["Fornecedor", "ID do cliente", "Produto", "Data do disparo", "Leads", "Enviados", "Número não existe", "Responderam", "Interessados", "Orçamentos", "% resposta", "% orçamento / resposta"],
       [30, 14, 30, 12, 8, 10, 12, 12, 12, 11, 10, 13], [11, 12]);
     t.zs.forEach((d) => { const m = czMetricas(d);
@@ -2263,7 +2263,7 @@ const ladoLogin = () => `<div class="login-lado">
       <li><i class="ti ti-refresh" aria-hidden="true"></i><span><b>Reativação</b>Por produto e por segmento</span></li>
       <li><i class="ti ti-building" aria-hidden="true"></i><span><b>Institucional</b>Cartas por segmento</span></li>
       <li><i class="ti ti-mail-forward" aria-hidden="true"></i><span><b>Cold mail</b>Carta por fornecedor</span></li>
-      <li><i class="ti ti-brand-whatsapp" aria-hidden="true"></i><span><b>WhatsApp</b>Leads de maior intenção</span></li>
+      <li><i class="ti ti-brand-whatsapp" aria-hidden="true"></i><span><b>ColdZap</b>WhatsApp do cold mail</span></li>
     </ul></div>`;
 function telaLogin(msg, ok) {
   const dominio = String(window.DOMINIO_EMPRESA || "");
