@@ -2313,6 +2313,9 @@ function limparDados() {
   const auth = firebase.auth(); db = firebase.firestore();
   state.downloads = downloadLocal;
   const dominio = String(window.DOMINIO_EMPRESA || "").toLowerCase();
+  /* Outros domínios da empresa que podem pedir o link de acesso (contas Microsoft com o endereço padrão do tenant).
+     Quem entra por eles só acessa o painel se estiver cadastrado como operador: as regras do banco continuam iguais. */
+  const dominiosLink = [dominio, "solucind.onmicrosoft.com"].filter(Boolean);
 
   /* Login pelo link que chega no e-mail */
   let linkPendente = auth.isSignInWithEmailLink(location.href);
@@ -2328,7 +2331,7 @@ function limparDados() {
     if (ev.target.id === "formLink") {
       ev.preventDefault();
       const email = $("loginEmail").value.trim().toLowerCase();
-      if (!email.endsWith("@" + dominio)) return telaLogin(`Use o seu e-mail @${dominio}.`);
+      if (!dominiosLink.some((d) => email.endsWith("@" + d))) return telaLogin(`Use o seu e-mail @${dominio}.`);
       const btn = $("enviarLink"); btn.disabled = true;
       try {
         await auth.sendSignInLinkToEmail(email, { url: location.origin + location.pathname, handleCodeInApp: true });
