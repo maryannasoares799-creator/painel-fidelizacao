@@ -4,7 +4,7 @@ const BASE_AB = ["Inteira", "A", "B"];
 const state = {
   pastas: [], estrategia: null, disparos: [], leads: [], bases: {}, inst: [], cm: [], cz: [], czLeads: [], carregado: {}, czSel: new Set(), fidSel: new Set(),
   downloads: null, leadsOk: false, czOk: false, podeEditar: true, rota: { tipo: "inicio" }, vista: "caixas",
-  busca: "", canal: "", status: "", envio: "", leadsAberto: false, instMes: "", geralMes: "", cmBusca: "", czBuscaLista: "", instBusca: "",
+  busca: "", canal: "", status: "", envio: "", leadsAberto: false, instMes: "", geralMes: "", cmMes: "", czMes: "", fidMes: "", cmBusca: "", czBuscaLista: "", instBusca: "",
 };
 let db = null; let iniciado = false;
 const $ = (id) => document.getElementById(id);
@@ -19,9 +19,14 @@ const VAZIO = { total: 0, enviados: 0, respostas: 0, interessados: 0, sairam: 0,
 const carregando = () => `<div class="empty"><i class="ti ti-loader-2" aria-hidden="true"></i>Carregando…</div>`;
 const semPermissao = (e) => !!e && (e.code === "permission-denied" || e.code === "invalid_argument");
 /* Indicador: [rótulo, valor, linha de apoio, destaque, ícone, medidor 0–100] */
-const kpiGrid = (itens) => `<div class="kpis">${itens.map(([l, v, s, h, ic, m]) => `<div class="kpi${h ? " highlight" : ""}">
+const kpiGrid = (itens, cls = "") => `<div class="kpis${cls ? " " + cls : ""}">${itens.map(([l, v, s, h, ic, m]) => `<div class="kpi${h ? " highlight" : ""}">
   <div class="topo">${ic ? `<span class="ico" aria-hidden="true"><i class="ti ${ic}"></i></span>` : ""}<span class="l">${l}</span></div>
   <span class="v">${v}</span>${m != null ? `<div class="medidor" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, m))}%"></span></div>` : ""}<span class="s">${esc(s)}</span></div>`).join("")}</div>`;
+/* Seletor de Período (mês) das telas das frentes; mes vazio = todos os meses. */
+const periodoSel = (id, mes, ms, explicacao) => `<div class="acoes periodo"><label for="${id}" class="note" style="display:flex;gap:8px;align-items:center"><i class="ti ti-calendar-month" aria-hidden="true" style="font-size:17px"></i>Período <select id="${id}"><option value="">Todos os meses</option>${ms.map((m) => `<option value="${m}"${mes === m ? " selected" : ""}>${nomeMes(m)}</option>`).join("")}</select></label>${ajuda(explicacao)}</div>`;
+/* "+120 vs outubro" para a linha de apoio do cartão da base (vazio quando é "Todos os meses"). */
+const vsMes = (mes, atual, anterior) => { if (!mes) return ""; const nomeAnt = MESES[+mesAnterior(mes).slice(5) - 1]; if (anterior == null) return `sem envios em ${nomeAnt}`; const d = atual - anterior; return d === 0 ? `igual a ${nomeAnt}` : `${d > 0 ? "+" : ""}${d} vs ${nomeAnt}`; };
+const mesesDe = (datas) => [...new Set(datas.map((x) => String(x || "").slice(0, 7)).filter(Boolean))].sort().reverse();
 const vazio = (ic, titulo, texto) => `<div class="empty"><i class="ti ${ic}" aria-hidden="true"></i><b>${titulo}</b>${texto ? `<span>${texto}</span>` : ""}</div>`;
 const secao = (id, ic, titulo, nota, corpo, acao = "") => `<section aria-labelledby="${id}"><div class="section-head"><h2 id="${id}">${ic ? `<i class="ti ${ic}" aria-hidden="true"></i>` : ""}${titulo}</h2>${acao ? `<div class="cab-dir">${nota ? `<span class="note">${nota}</span>` : ""}${acao}</div>` : nota ? `<span class="note">${nota}</span>` : ""}</div>${corpo}</section>`;
 /* Modo de ver os fornecedores (Cold mail e ColdZap): "caixas" (cartões) ou "lista" (fileiras). Fica guardado neste navegador. */
@@ -204,9 +209,10 @@ function crumbs() {
 }
 
 /* ---------- blocos (reativação) ---------- */
-function kpis(m) {
+function kpis(m, base) {
   return kpiGrid([
-    ["Enviados", m.enviados, m.enviados < m.total ? `${m.total - m.enviados} aguardando envio` : `${m.total} na base`, false, "ti-send", m.total ? pct(m.enviados, m.total) : null],
+    ...(base ? [["Tamanho da base", m.total, base.sub, false, "ti-users-group"]] : []),
+    ["Enviados", m.enviados, m.enviados < m.total ? `${m.total - m.enviados} aguardando envio` : base ? "toda a base enviada" : `${m.total} na base`, false, "ti-send", m.total ? pct(m.enviados, m.total) : null],
     ["Responderam", m.respostas, `${br(pct(m.respostas, m.enviados))}% dos enviados`, false, "ti-message-circle"],
     ["Interessados", m.interessados, `${br(pct(m.interessados, m.enviados))}% dos enviados`, false, "ti-thumb-up"],
     ["Orçamentos gerados", m.pedidos, `${br(pct(m.pedidos, m.respostas))}% das respostas`, true, "ti-file-invoice"],
@@ -327,17 +333,25 @@ function cardVisao(k) {
 }
 
 /* ---------- telas (reativação) ---------- */
+/* Reativação por período: mês do envio, ou a data planejada do disparo ainda não enviado. */
+const mesFid = (d) => dataEnvio(d) || d.data || "";
+const fidDoMes = (ds, mes) => ds.filter((d) => !mes || mesFid(d).startsWith(mes));
+const baseFid = (ds, mes, m, universo) => { const ant = mes ? fidDoMes(universo, mesAnterior(mes)) : [];
+  return { sub: [`${ds.length} disparo(s)`, vsMes(mes, m.total, ant.length ? somar(ant.map((d) => metricasDisparo(d).geral)).total : null)].filter(Boolean).join(" · ") }; };
 function telaInicio() {
   cab("Reativação", "Quem já cotou na plataforma recebe e-mail e WhatsApp com novas ofertas, em duas visões: por produto (outras opções do que cotou) e por segmento (o que o segmento dele costuma usar).");
-  const total = somar(state.disparos.map((d) => metricasDisparo(d).geral));
+  const mesesFid = mesesDe(state.disparos.map(mesFid)); const mes = mesesFid.includes(state.fidMes) ? state.fidMes : "";
+  const dsMes = fidDoMes(state.disparos, mes);
+  const total = somar(dsMes.map((d) => metricasDisparo(d).geral));
   const pastas = [...state.pastas].sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99));
   const rel = state.downloads && window.XLSX ? painel("h-rel", "ti-file-spreadsheet", "Relatório mensal", "", `<p class="note">Disparos enviados no mês, resultados por canal e as respostas recebidas, em Excel.</p>
       <div class="relatorio"><label for="mesRel">Mês <select id="mesRel">${meses().map((m, i) => `<option value="${m}"${i === 0 ? " selected" : ""}>${nomeMes(m)}</option>`).join("")}</select></label>
       <button type="button" class="btn" data-relatorio="1"><i class="ti ti-download" aria-hidden="true"></i>Baixar relatório</button></div><span class="note" id="relMsg"></span>`) : "";
   return `<div class="pilha">
-    ${secao("h-tot", "ti-chart-bar", "Todos os disparos", `${state.disparos.length} disparo(s) em ${state.pastas.length} pasta(s)`, kpis(total))}
+    ${state.disparos.length ? periodoSel("fidMes", mes, mesesFid, "Mostra só os disparos do mês escolhido (mês do envio, ou a data planejada de quem ainda não enviou): tamanho da base, envios, respostas e orçamentos, e o funil. As visões e as pastas continuam com todos os disparos.") : ""}
+    ${secao("h-tot", "ti-chart-bar", mes ? "Disparos do período" : "Todos os disparos", `${mes ? nomeMes(mes) + " · " : ""}${dsMes.length} disparo(s)${mes ? "" : ` em ${state.pastas.length} pasta(s)`}`, kpis(total, baseFid(dsMes, mes, total, state.disparos)))}
     ${secao("h-vis", "ti-arrows-split", "As duas visões", "Cada disparo segue uma das duas", `<div class="frentes">${cardVisao("produto")}${cardVisao("necessidade")}</div>`)}
-    <div class="grade-2">${painel("h-ff", "ti-filter", "Funil da reativação", "As duas visões somadas", funil(fidEtapas(total), "var(--f-fid)"))}${rel}</div>
+    <div class="grade-2">${painel("h-ff", "ti-filter", "Funil da reativação", mes ? `As duas visões · ${nomeMes(mes)}` : "As duas visões somadas", funil(fidEtapas(total), "var(--f-fid)"))}${rel}</div>
     ${secao("h-pastas", "ti-folders", "Pastas por produto", "Cada pasta tem o que oferecer nas duas visões e os disparos do produto", `<div class="grid-cards">${pastas.map((p) => {
       const m = metricasPasta(p); const ds = state.disparos.filter((d) => d.pasta === p.id);
       return `<button type="button" class="card fid" data-ir="pasta:${esc(p.id)}">
@@ -351,14 +365,17 @@ function telaInicio() {
 function telaVisao(k) {
   const v = VISOES[k]; if (!v) return telaInicio();
   cab(`Reativação · ${v.nome}`, v.texto);
-  const ds = state.disparos.filter((d) => visaoDe(d) === k).sort((a, b) => (b.data || "").localeCompare(a.data || ""));
+  const todosV = state.disparos.filter((d) => visaoDe(d) === k);
+  const mesesV = mesesDe(todosV.map(mesFid)); const mes = mesesV.includes(state.fidMes) ? state.fidMes : "";
+  const ds = fidDoMes(todosV, mes).sort((a, b) => (b.data || "").localeCompare(a.data || ""));
   const m = somar(ds.map((d) => metricasDisparo(d).geral));
   const pastas = [...state.pastas].sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99));
   const matrizes = pastas.map((p) => (k === "produto" ? matrizProduto(p) : matrizNecessidade(p))).filter(Boolean);
   const novoBtn = state.podeEditar ? `<button type="button" class="btn" data-ir="fid-novo:${k}"><i class="ti ti-plus" aria-hidden="true"></i>Novo disparo</button>` : "";
   return `<div class="pilha">
     ${novoBtn ? `<div class="acoes">${novoBtn}${ds.length ? `<button type="button" class="btn secundario" data-rolar="h-vd"><i class="ti ti-list" aria-hidden="true"></i>Ver os disparos (${ds.length})</button>` : ""}<span class="note">Registre aqui cada disparo, com a data, a base e os números.</span></div>` : ""}
-    ${secao("h-vr", "ti-chart-bar", "Resultado", `${ds.length} disparo(s) ${v.nome.toLowerCase()}`, kpis(m))}
+    ${todosV.length ? periodoSel("fidMes", mes, mesesV, "Mostra só os disparos do mês escolhido (mês do envio, ou a data planejada de quem ainda não enviou): tamanho da base, envios, respostas, orçamentos e a lista de disparos.") : ""}
+    ${secao("h-vr", "ti-chart-bar", "Resultado", `${mes ? nomeMes(mes) + " · " : ""}${ds.length} disparo(s) ${v.nome.toLowerCase()}`, kpis(m, baseFid(ds, mes, m, todosV)))}
     ${secao("h-vd", "ti-send", "Disparos", ds.length ? `${ds.length} disparo(s) · abra um para ver ou atualizar os números` : "", ds.length ? `<div class="grid-cards">${ds.map(cardDisparo).join("")}</div>` : vazio("ti-send-off", `Nenhum disparo ${v.nome.toLowerCase()} ainda.`, state.podeEditar ? "Use “Novo disparo” para registrar o primeiro." : "O primeiro disparo aparece aqui quando for registrado."), novoBtn)}
     ${secao("h-vo", "ti-target", "O que oferecer", k === "produto" ? "O tipo que o lead cotou sai da oferta" : "Por segmento da empresa", matrizes.join("") || vazio("ti-list-search", "Nenhuma lista de oferta cadastrada ainda."))}
   </div>`;
@@ -648,15 +665,17 @@ function instSomar(lista) {
   lista.forEach((d) => { const c = instCalc(d); Object.keys(c).forEach((k) => (s[k] += c[k])); });
   return s;
 }
-function instKpis(s) {
+function instKpis(s, base) {
   return kpiGrid([
-    ["Disparos", s.n, `${s.limpa} e-mails na base limpa`, false, "ti-send"],
+    ["Disparos", s.n, base ? (s.env ? `${s.env} e-mails enviados` : "sem números do BillionMail ainda") : `${s.limpa} e-mails na base limpa`, false, "ti-send"],
+    ...(base ? [["Tamanho da base", base.tamanho, base.sub, false, "ti-users-group"],
+      ["Base limpa", base.limpa, base.tamanho ? `${br(pct(base.limpa, base.tamanho))}% do tamanho da base` : "sem base no período", false, "ti-database", base.tamanho ? pct(base.limpa, base.tamanho) : null]] : []),
     ["Entregues", s.entregues, s.env ? `${br(pct(s.entregues, s.env))}% dos ${s.env} enviados` : "lance os números do BillionMail", false, "ti-mail-check", s.env ? pct(s.entregues, s.env) : null],
     ["% lido", `${br(pct(s.abertos, s.entregues))}%`, `${s.abertos} abertos`, false, "ti-mail-opened", s.entregues ? pct(s.abertos, s.entregues) : null],
     ["Cliques no link", s.cliques, `${br(pct(s.cliques, s.entregues))}% dos entregues`, false, "ti-click"],
     ["Respostas", s.respostas, `${br(pct(s.respostas, s.entregues))}% dos entregues`, false, "ti-message-circle"],
     ["Orçamentos", s.orcamentos, `${br(pct(s.orcamentos, s.respostas))}% das respostas (conversão)`, true, "ti-file-invoice"],
-  ]);
+  ], base ? "k4" : "");
 }
 const instEtapas = (s) => [
   { nome: "Base limpa", icone: "ti-database", v: s.limpa }, { nome: "Entregues", icone: "ti-mail-check", v: s.entregues },
@@ -683,17 +702,19 @@ function renderInstLista() {
 function telaInstitucional() {
   cab("Institucional", "Cartas do Soluções Industriais para uma base escolhida por segmento, sem fornecedor específico. Cada disparo é uma linha, com o funil do BillionMail e o retorno.");
   if (!state.carregado.inst) return carregando();
-  const mesesInst = [...new Set(state.inst.map((d) => (d.data_disparo || "").slice(0, 7)).filter(Boolean))].sort().reverse();
+  const mesesInst = mesesDe(state.inst.map((d) => d.data_disparo));
   const lista = instDoMes();
   const s = instSomar(lista);
+  /* Tamanho da base do período, com a comparação com o mês anterior. */
+  const mes = state.instMes; const listaAnt = mes ? state.inst.filter((d) => (d.data_disparo || "").startsWith(mesAnterior(mes))) : [];
+  const prog = lista.filter((d) => d.data_disparo > hojeLocal()).length;
+  const base = { tamanho: s.base, limpa: s.limpa, sub: [`${lista.length} disparo(s)${prog ? `, ${prog} programado(s)` : ""}`, vsMes(mes, s.base, listaAnt.length ? instSomar(listaAnt).base : null)].filter(Boolean).join(" · ") };
   const segs = {}; lista.forEach((d) => (segs[d.segmento || "Sem segmento"] ||= []).push(d));
   const segLinhas = Object.entries(segs).map(([seg, ds]) => [seg, ds.length, instSomar(ds)]).sort((a, b) => b[2].orcamentos - a[2].orcamentos || b[1] - a[1]);
   return `<div class="pilha">
-    <div class="acoes">
-      ${state.podeEditar ? `<button type="button" class="btn" data-ir="inst-novo"><i class="ti ti-plus" aria-hidden="true"></i>Novo disparo institucional</button>` : ""}
-      <label for="instMes" class="note" style="display:flex;gap:8px;align-items:center">Mês do disparo <select id="instMes"><option value="">Todos</option>${mesesInst.map((m) => `<option value="${m}"${state.instMes === m ? " selected" : ""}>${nomeMes(m)}</option>`).join("")}</select></label>
-    </div>
-    ${secao("h-it", "ti-chart-bar", "Resultado", state.instMes ? nomeMes(state.instMes) : "Todos os meses", instKpis(s))}
+    ${state.podeEditar ? `<div class="acoes"><button type="button" class="btn" data-ir="inst-novo"><i class="ti ti-plus" aria-hidden="true"></i>Novo disparo institucional</button></div>` : ""}
+    ${state.inst.length ? periodoSel("instMes", state.instMes, mesesInst, "Mostra só os disparos com data no mês escolhido: tamanho da base, números do BillionMail, respostas, orçamentos, a tabela por segmento e a lista de disparos.") : ""}
+    ${secao("h-it", "ti-chart-bar", "Resultado", state.instMes ? nomeMes(state.instMes) : "Todos os meses", instKpis(s, base))}
     ${lista.length ? `
     ${painel("h-if", "ti-filter", "Funil institucional", "Do e-mail limpo ao orçamento", funil(instEtapas(s), "var(--f-inst)"))}
     ${secao("h-seg", "ti-category", "Por segmento", "Conversão = orçamentos ÷ respostas", `<div class="tbl-wrap"><table><thead><tr><th>Segmento</th><th class="num">Disparos</th><th class="num">Base limpa</th><th class="num">Entregues</th><th class="num">% lido</th><th class="num">Cliques</th><th class="num">Respostas</th><th class="num">Orçamentos</th><th class="num">Conversão</th></tr></thead>
@@ -799,9 +820,9 @@ function czMetricas(d) {
   return { ...CZ_ZERO, ...(d.metricas || {}), total: d.metricas?.total ?? d.leads ?? 0 };
 }
 function czSomar(lista) { const s = { ...CZ_ZERO }; lista.forEach((m) => Object.keys(s).forEach((k) => (s[k] += m[k] || 0))); return s; }
-function czKpis(m) {
+function czKpis(m, extra) {
   return kpiGrid([
-    ["Leads separados", m.total, m.pendentes ? `${m.pendentes} ainda sem envio` : "todos tratados", false, "ti-users", m.total ? pct(m.total - m.pendentes, m.total) : null],
+    ["Leads separados", m.total, [m.pendentes ? `${m.pendentes} ainda sem envio` : "todos tratados", extra].filter(Boolean).join(" · "), false, "ti-users", m.total ? pct(m.total - m.pendentes, m.total) : null],
     ["Enviados", m.enviados, `${br(pct(m.enviados, m.total))}% da lista`, false, "ti-send"],
     ["Número não existe", m.nao_existe, `${br(pct(m.nao_existe, m.total))}% da lista`, false, "ti-phone-off"],
     ["Responderam", m.respostas, `${br(pct(m.respostas, m.enviados))}% dos enviados`, false, "ti-message-circle"],
@@ -851,13 +872,18 @@ function telaColdzap() {
   cab("ColdZap", "A parte da base de um cold mail por fornecedor que vai pelo WhatsApp, enviada à mão. Cada lista mostra lead a lead quem recebeu, quem respondeu e quais respostas viraram orçamento.");
   if (!state.carregado.cz) return carregando();
   const ds = [...state.cz].sort((a, b) => (b.data || "").localeCompare(a.data || ""));
-  const tot = czSomar(ds.map(czMetricas));
+  /* Período: resultado, funil e andamento só com as listas do mês; a lista por fornecedor continua com todas. */
+  const mes = state.czMes; const doMes = (m) => ds.filter((d) => !m || (d.data || "").startsWith(m));
+  const dsMes = doMes(mes); const tot = czSomar(dsMes.map(czMetricas));
+  const antL = mes ? doMes(mesAnterior(mes)) : [];
+  const extra = vsMes(mes, tot.total, antL.length ? czSomar(antL.map(czMetricas)).total : null);
   return `<div class="pilha">
     ${czPodeCriar() ? `<div class="acoes"><button type="button" class="btn" data-ir="cz-nova"><i class="ti ti-plus" aria-hidden="true"></i>Nova lista</button><span class="note">Suba a planilha com os leads do WhatsApp e o painel monta a lista.</span></div>` : ""}
-    ${secao("h-zt", "ti-chart-bar", "Todas as listas", `${ds.length} lista(s) de WhatsApp`, czKpis(tot))}
+    ${ds.length ? periodoSel("czMes", mes, mesesDe(ds.map((d) => d.data)), "Mostra só as listas com data no mês escolhido. A base de cada lista são os leads separados para o WhatsApp. A lista por fornecedor continua com todas.") : ""}
+    ${secao("h-zt", "ti-chart-bar", mes ? "Listas do período" : "Todas as listas", `${mes ? nomeMes(mes) + " · " : ""}${dsMes.length} lista(s) de WhatsApp`, czKpis(tot, extra))}
     <div class="grade-2">
-      ${painel("h-zf", "ti-filter", "Funil do ColdZap", "Todas as listas", funil(czEtapas(tot), "var(--f-cz)"))}
-      ${painel("h-zp", "ti-progress-check", "Andamento dos envios", `${tot.enviados + tot.nao_existe} de ${tot.total} tratados`, `<div class="cz" style="display:grid;gap:14px">${ds.map((d) => { const m = czMetricas(d);
+      ${painel("h-zf", "ti-filter", "Funil do ColdZap", mes ? nomeMes(mes) : "Todas as listas", funil(czEtapas(tot), "var(--f-cz)"))}
+      ${painel("h-zp", "ti-progress-check", "Andamento dos envios", `${tot.enviados + tot.nao_existe} de ${tot.total} tratados`, `<div class="cz" style="display:grid;gap:14px">${dsMes.map((d) => { const m = czMetricas(d);
         return `<div style="display:grid;gap:6px"><div style="display:flex;justify-content:space-between;gap:8px;font-size:13.5px"><button type="button" class="linkbtn" style="text-decoration:none;font-weight:600;color:var(--ink)" data-ir="czd:${esc(d.id)}">${esc(d.empresa)}</button><span class="note">${m.enviados + m.nao_existe}/${m.total}</span></div>${czProgresso(m)}</div>`; }).join("") || `<p class="note">Nenhuma lista ainda.</p>`}</div>`)}
     </div>
     ${secao("h-zl", "ti-list-details", "Listas por fornecedor", "", ds.length ? (() => { const fl = czFiltradasLista(); return `${barraBusca("czBuscaLista", state.czBuscaLista, "Buscar por fornecedor, ID do cliente ou produto", czContagemLista(fl))}<div id="czLista">${czListaHtml(fl)}</div>`; })()
@@ -1301,16 +1327,18 @@ function cmFornecedores(lista = state.cm) {
   }).sort((a, b) => (b.ultima || "").localeCompare(a.ultima || ""));
 }
 const cmTotais = (lista = state.cm) => { const s = instSomar(lista.filter((d) => cmEnviado(d) && temMetrica(d))); s.respostas = lista.reduce((a, d) => a + (num(d.respostas) || 0), 0); s.orcamentos = lista.reduce((a, d) => a + (num(d.orcamentos) || 0), 0); return s; };
-function cmKpis(s, nForn) {
+function cmKpis(s, nForn, base) {
   const itens = [
     ["Fornecedores", nForn, `${s.n} envio(s) com números do BillionMail`, false, "ti-building-store"],
+    ...(base ? [["Tamanho da base", base.tamanho, base.sub, false, "ti-users-group"],
+      ["Base limpa", base.limpa, base.tamanho ? `${br(pct(base.limpa, base.tamanho))}% do tamanho · todos os envios` : "sem base no período", false, "ti-database", base.tamanho ? pct(base.limpa, base.tamanho) : null]] : []),
     ["Entregues", s.entregues, s.env ? `${br(pct(s.entregues, s.env))}% dos ${s.env} enviados` : "lance os números do BillionMail", false, "ti-mail-check", s.env ? pct(s.entregues, s.env) : null],
     ["% lido", `${br(pct(s.abertos, s.entregues))}%`, `${s.abertos} abertos`, false, "ti-mail-opened", s.entregues ? pct(s.abertos, s.entregues) : null],
     ["Cliques no link", s.cliques, `${br(pct(s.cliques, s.entregues))}% dos entregues`, false, "ti-click"],
     ["Respostas", s.respostas, "pelo e-mail", false, "ti-message-circle"],
     ["Orçamentos", s.orcamentos, `${br(pct(s.orcamentos, s.respostas))}% das respostas (conversão)`, true, "ti-file-invoice"],
   ];
-  return kpiGrid(nForn == null ? itens.slice(1) : itens);
+  return kpiGrid(nForn == null ? itens.slice(1) : itens, base ? "k4" : "");
 }
 const linhaCm = (d) => { const s = instSomar([d]); const temNum = temMetrica(d); const tr = (v) => (temNum ? v : "—");
   return `<td class="num">${num(d.base_limpa) ?? "—"}</td><td class="num">${tr(s.entregues)}</td><td class="num">${tr(br(pct(s.abertos, s.entregues)) + "%")}</td><td class="num">${tr(s.cliques)}</td><td class="num">${num(d.respostas) ?? "—"}</td><td class="num">${num(d.orcamentos) ?? "—"}</td>`; };
@@ -1367,14 +1395,23 @@ function renderCmLista() {
 function telaColdmail() {
   cab("Cold mail", "Cartas personalizadas por fornecedor, enviadas pelo BillionMail. Cada fornecedor reúne os envios da campanha (base inteira ou metades A e B); a parte da base que vai pelo WhatsApp fica no ColdZap.");
   if (!state.carregado.inst) return carregando();
-  const forn = cmFornecedores(); const s = cmTotais();
+  const forn = cmFornecedores();
+  /* Período: os números e o funil mostram só os envios com disparo no mês escolhido (vazio = todos os meses). */
+  const mes = state.cmMes; const doMes = (m) => state.cm.filter((d) => !m || (d.data_disparo || "").startsWith(m));
+  const lista = doMes(mes); const s = cmTotais(lista); const nForn = mes ? cmFornecedores(lista).length : forn.length;
+  const mesesCm = mesesDe(state.cm.map((d) => d.data_disparo));
+  const somaBase = (ls) => ({ tamanho: ls.reduce((a, d) => a + (num(d.tamanho_base) || 0), 0), limpa: ls.reduce((a, d) => a + (num(d.base_limpa) || 0), 0) });
+  const b = somaBase(lista); const prog = lista.filter((d) => cmSituacao(d).k === "programado").length;
+  const listaAnt = mes ? doMes(mesAnterior(mes)) : [];
+  b.sub = [`${lista.length} envio(s)${prog ? `, ${prog} programado(s)` : ""}`, vsMes(mes, b.tamanho, listaAnt.length ? somaBase(listaAnt).tamanho : null)].filter(Boolean).join(" · ");
   const agenda = state.cm.filter((d) => ["hoje", "programado", "sem_metricas", "sem_data"].includes(cmSituacao(d).k))
     .sort((a, b) => (a.data_disparo || "9999").localeCompare(b.data_disparo || "9999"));
   return `<div class="pilha">
     <div class="acoes">${state.podeEditar ? `<button type="button" class="btn" data-ir="cm-novo"><i class="ti ti-plus" aria-hidden="true"></i>Novo cold mail</button>` : ""}${ajuda('Os números do BillionMail podem mudar: abra o fornecedor e use "Editar" para atualizar.')}</div>
-    ${secao("h-cmt", "ti-chart-bar", "Resultado do e-mail", "Funil dos envios com números do BillionMail · o WhatsApp fica no ColdZap", cmKpis(s, forn.length))}
+    ${periodoSel("cmMes", mes, mesesCm, "Mostra só os envios com data de disparo no mês escolhido: tamanho da base, números do BillionMail, respostas e orçamentos. A agenda e a lista de fornecedores continuam com todos os envios.")}
+    ${secao("h-cmt", "ti-chart-bar", "Resultado do e-mail", `${mes ? nomeMes(mes) + " · " : ""}Funil dos envios com números do BillionMail · o WhatsApp fica no ColdZap`, cmKpis(s, nForn, b))}
     <div class="grade-2">
-      ${painel("h-cmf", "ti-filter", "Funil do cold mail", "Só o e-mail", funil(instEtapas(s), "var(--f-cm)"))}
+      ${painel("h-cmf", "ti-filter", `Funil do cold mail ${ajuda("O funil conta só os envios que já têm os números do BillionMail lançados, para as taxas saírem certas. Por isso a base limpa aqui pode ser menor que a do cartão, que soma todos os envios do período.")}`, "Só o e-mail · envios com números", funil(instEtapas(s), "var(--f-cm)"))}
       ${painel("h-cma", "ti-calendar-event", "Agenda", agenda.length ? `${agenda.length} envio(s)` : "", agenda.length ? `<ul class="pendencias">${agenda.map((d) => { const k = cmSituacao(d).k;
         return `<li class="${k === "sem_metricas" ? "alerta" : ""}"><span class="pi" aria-hidden="true"><i class="ti ${k === "programado" || k === "hoje" ? "ti-calendar-event" : k === "sem_data" ? "ti-calendar-off" : "ti-chart-bar-off"}"></i></span><div><button type="button" data-ir="cmf:${esc(normChave(d.chave) || "sem-id:" + String(d.empresa || "").trim().toLowerCase())}">${esc(String(d.empresa || "").trim())} · ${baseNome(d)}</button><span>${k === "hoje" ? "Disparo hoje" : k === "programado" ? `Programado para ${fmtData(d.data_disparo)}` : k === "sem_data" ? "Sem data de disparo" : `Enviado em ${fmtData(d.data_disparo)}: lançar os números do BillionMail`}</span></div></li>`; }).join("")}</ul>`
         : `<p class="note" style="display:flex;gap:8px;align-items:center"><i class="ti ti-circle-check" style="color:var(--ok);font-size:18px" aria-hidden="true"></i>Nenhum envio programado nem sem números.</p>`)}
@@ -2211,6 +2248,9 @@ document.addEventListener("change", (ev) => {
   if (el.id === "fidSelTodos" || el.id === "fidSelTh") { fidWhats(fidFiltrados(state.rota.id)).forEach((x) => (el.checked ? state.fidSel.add(x) : state.fidSel.delete(x))); return atualizarFidSel(); }
   if (el.dataset.fidsel) { if (el.checked) state.fidSel.add(el.dataset.fidsel); else state.fidSel.delete(el.dataset.fidsel); return atualizarFidSel(); }
   if (el.id === "instMes") { state.instMes = el.value; return render(); }
+  if (el.id === "cmMes") { state.cmMes = el.value; return render(); }
+  if (el.id === "czMes") { state.czMes = el.value; return render(); }
+  if (el.id === "fidMes") { state.fidMes = el.value; return render(); }
   if (el.id === "geralMes") { state.geralMes = el.value; return render(); }
   if (el.id === "f_visao") { const c = $("campoSeg"); if (c) c.hidden = el.value !== "necessidade"; return; }
   if (el.dataset.bm) return salvarBm(el);
