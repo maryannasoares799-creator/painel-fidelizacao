@@ -256,9 +256,11 @@ const chipVisao = (d) => `<span class="chip info sem-ponto"><i class="ti ${VISOE
    para quem planeja o disparo. Elementos .so-analise só aparecem com o bloco aberto; .sem-analise só com ele fechado. */
 const maiuscula = (t) => { const x = String(t || "").trim(); return x ? x[0].toUpperCase() + x.slice(1) : ""; };
 const rotuloAnalise = () => (state.verAnalise ? `<i class="ti ti-eye-off" aria-hidden="true"></i>Esconder os números da análise` : `<i class="ti ti-chart-dots" aria-hidden="true"></i>Ver os números da análise`);
-const barraAnalise = (legenda) => `<div class="analise-barra"><span class="note so-analise">${legenda}</span><button type="button" class="btn secundario" data-analise="1" aria-pressed="${state.verAnalise ? "true" : "false"}">${rotuloAnalise()}</button></div>`;
+/* Período e fonte da análise da pasta (campo analise_periodo), mostrado junto com os números. */
+const fonteAnalise = (p) => (p && p.analise_periodo ? `<span class="fonte-analise"><i class="ti ti-calendar-stats" aria-hidden="true"></i>${esc(p.analise_periodo)}</span>` : "");
+const barraAnalise = (legenda, p) => `<div class="analise-barra"><span class="note so-analise">${fonteAnalise(p)}${legenda}</span><button type="button" class="btn secundario" data-analise="1" aria-pressed="${state.verAnalise ? "true" : "false"}">${rotuloAnalise()}</button></div>`;
 const blocoOferta = (corpo) => `<div class="oferta-bloco${state.verAnalise ? " com-analise" : ""}">${corpo}</div>`;
-const matrizProduto = (p) => (p.estrategia?.length ? blocoOferta(`${barraAnalise("Por que essas ofertas: as regras e a afinidade medida na plataforma.")}
+const matrizProduto = (p) => (p.estrategia?.length ? blocoOferta(`${barraAnalise("Por que essas ofertas: as regras e a afinidade medida na plataforma.", p)}
     ${p.estrategia_nota ? `<p class="analise-nota so-analise"><i class="ti ti-info-circle" aria-hidden="true"></i>${esc(p.estrategia_nota)}</p>` : ""}
     <div class="de-para">
     <div class="de-para-cab" aria-hidden="true"><span>Se o lead cotou ${esc(p.nome.toLowerCase())}</span><span>Oferecer</span></div>
@@ -272,7 +274,7 @@ function matrizNecessidade(p) {
     <ul>${(g.itens || []).map((e) => `<li><div><b>${esc(e.linha)}</b>${e.oferta && !igual(e.oferta, e.linha) ? `<span>${esc(e.oferta)}</span>` : ""}${e.dado && g.geral ? `<small class="so-analise">${esc(e.dado)}</small>` : ""}</div>${e.dado && !g.geral ? `<span class="dado-seg so-analise">${esc(e.dado)}</span>` : ""}</li>`).join("")}</ul>
     ${g.evitar ? `<p class="evitar"><i class="ti ti-ban" aria-hidden="true"></i><span class="sem-analise">Não oferecer: ${esc(curto(g.evitar))}</span><span class="so-analise">Não oferecer: ${esc(g.evitar)}</span></p>` : ""}</article>`;
   const ordem = [...grupos.filter((g) => g.geral), ...grupos.filter((g) => !g.geral)];
-  return blocoOferta(`${barraAnalise("“x” = quantas vezes mais o segmento cota o produto do que um lead qualquer da plataforma · leads = quantos já cotaram (poucos leads pedem cautela)")}
+  return blocoOferta(`${barraAnalise("“x” = quantas vezes mais o segmento cota o produto do que um lead qualquer da plataforma · leads = quantos já cotaram (poucos leads pedem cautela)", p)}
     <div class="segmentos">${ordem.map(card).join("")}</div>`);
 }
 /* Quem recebeu o quê: classes A, B e C dos leads do disparo e quantos ficaram fora. */
