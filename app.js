@@ -3,7 +3,7 @@ const ENVIO = { "": "Não enviado", enviado: "Enviado", nao_existe: "Número nã
 const BASE_AB = ["Inteira", "A", "B"];
 const state = {
   pastas: [], estrategia: null, disparos: [], leads: [], bases: {}, inst: [], cm: [], cz: [], czLeads: [], carregado: {}, czSel: new Set(), fidSel: new Set(),
-  downloads: null, leadsOk: false, czOk: false, podeEditar: true, rota: { tipo: "inicio" }, vista: "caixas",
+  downloads: null, leadsOk: false, czOk: false, orcs: [], orcOk: false, orcErro: false, podeEditar: true, rota: { tipo: "inicio" }, vista: "caixas",
   busca: "", canal: "", status: "", envio: "", leadsAberto: false, instMes: "", geralMes: "", cmMes: "", czMes: "", fidMes: "", cmBusca: "", czBuscaLista: "", instBusca: "",
 };
 let db = null; let iniciado = false;
@@ -1436,6 +1436,7 @@ function telaCmFornecedor(k) {
         <div><b>${tem ? br(pct(s.entregues, s.env)) + "%" : "—"}</b><span>Entregues</span></div><div><b>${tem ? br(pct(s.abertos, s.entregues)) + "%" : "—"}</b><span>Lido</span></div>
         <div><b>${tem ? br(pct(s.cliques, s.entregues)) + "%" : "—"}</b><span>Cliques</span></div><div><b>${num(d.respostas) ?? "—"} / ${num(d.orcamentos) ?? "—"}</b><span>Respostas / orçamentos</span></div></div>
       ${sit.k === "programado" || sit.k === "hoje" ? `<p class="note">As métricas entram depois do envio, pela tela de Analytics do BillionMail.</p>` : sit.k === "sem_metricas" ? `<p class="note" style="color:var(--bad)">Já passou da data do disparo e ainda não há números do BillionMail. ${state.podeEditar ? "Use “Editar” para lançar." : ""}</p>` : ""}
+      ${orcTabela(d.id)}
       ${d.assunto ? `<p class="note">Assunto: ${esc(d.assunto)}</p>` : ""}${d.obs ? `<p class="note">Obs.: ${esc(d.obs)}</p>` : ""}</article>`; };
   const czm = f.cz ? czMetricas(f.cz) : null;
   return `<div class="pilha">
@@ -1459,6 +1460,39 @@ function telaCmFornecedor(k) {
   </div>`;
 }
 
+/* ---------- Orçamentos recebidos: o detalhe de cada orçamento, um por lead ----------
+   Ficam na coleção "orcamentos" (campo envio = id do envio), que só operadores leem,
+   porque têm nome, e-mail e telefone do comprador. O número de orçamentos do envio continua no envio. */
+const ORC_CAMPOS = [["data", "Data", "date"], ["id_orcamento", "ID (orçamento)", "text"], ["produto", "Produto/Serviço", "text"], ["comprador", "Nome do Comprador", "text"],
+  ["empresa", "Nome da Empresa", "text"], ["email", "E-mail", "email"], ["telefone", "Telefone", "tel"], ["regiao", "Região", "text"], ["perfil", "Tipo de Perfil", "text"]];
+const orcsDoEnvio = (id) => (state.orcs || []).filter((o) => id && o.envio === id).sort((a, b) => (a.data || "").localeCompare(b.data || ""));
+const orcLinha = (o = {}) => `<div class="orc-linha" data-orc="${esc(o._id || "")}"><div class="campos">${ORC_CAMPOS.map(([k, rot, tipo]) =>
+  `<label class="campo">${rot}<input type="${tipo}" data-oc="${k}" value="${esc(o[k] ?? "")}"${k === "perfil" ? ' list="orcPerfis"' : k === "regiao" ? ' list="orcRegioes"' : ""} autocomplete="off"></label>`).join("")}</div>
+  <button type="button" class="btn secundario orc-tirar" data-orc-tirar="1"><i class="ti ti-trash" aria-hidden="true"></i>Tirar este orçamento</button></div>`;
+function orcBloco(envioId) {
+  if (!state.podeEditar) return "";
+  if (state.orcErro) return `<p class="analise-nota"><i class="ti ti-lock" aria-hidden="true"></i>O detalhe dos orçamentos ainda não está liberado no banco do painel. Falta publicar a regra nova do Firestore.</p>`;
+  const valores = (k) => [...new Set((state.orcs || []).map((o) => String(o[k] || "").trim()).filter(Boolean))].sort();
+  return `<div class="orc-bloco"><div class="orc-cab"><b><i class="ti ti-file-invoice" aria-hidden="true"></i>Detalhe dos orçamentos</b>
+      <span class="note">Um por lead. Dica: copie a linha da planilha (Data, ID, Produto/Serviço…) e cole no campo Data, que o painel preenche os outros campos. Ao salvar, o número de Orçamentos acompanha a lista.</span></div>
+    <div id="orcLinhas" class="orc-linhas">${orcsDoEnvio(envioId).map(orcLinha).join("")}</div>
+    <button type="button" class="btn secundario" style="justify-self:start" data-orc-add="1"><i class="ti ti-plus" aria-hidden="true"></i>Adicionar orçamento</button>
+    <datalist id="orcPerfis">${valores("perfil").map((v) => `<option value="${esc(v)}">`).join("")}</datalist>
+    <datalist id="orcRegioes">${valores("regiao").map((v) => `<option value="${esc(v)}">`).join("")}</datalist></div>`;
+}
+/* Tabela dos orçamentos de um envio, na tela do fornecedor (só para operadores). */
+function orcTabela(envioId) {
+  if (!state.podeEditar || !state.orcOk) return "";
+  const ls = orcsDoEnvio(envioId); if (!ls.length) return "";
+  const cel = (o, k) => { const v = String(o[k] ?? "").trim(); if (!v) return "—"; if (k === "data") return fmtData(v); if (k === "email") return `<a href="mailto:${esc(v)}">${esc(v)}</a>`; return esc(v); };
+  return `<div class="orc-tabela"><b class="orc-titulo"><i class="ti ti-file-invoice" aria-hidden="true"></i>Orçamentos recebidos (${ls.length})</b>
+    <div class="tbl-wrap"><table><thead><tr>${ORC_CAMPOS.map(([k, rot]) => `<th class="c-${k}">${rot}</th>`).join("")}</tr></thead>
+    <tbody>${ls.map((o) => `<tr>${ORC_CAMPOS.map(([k]) => `<td class="c-${k}">${cel(o, k)}</td>`).join("")}</tr>`).join("")}</tbody></table></div></div>`;
+}
+/* Lê as linhas de orçamento do formulário (ignora as vazias). */
+const orcDoForm = () => [...document.querySelectorAll("#orcLinhas .orc-linha")].map((l) => {
+  const o = { _id: l.dataset.orc || "" }; ORC_CAMPOS.forEach(([k]) => (o[k] = (l.querySelector(`[data-oc="${k}"]`)?.value || "").trim())); return o;
+}).filter((o) => ORC_CAMPOS.some(([k]) => o[k]));
 function telaCmForm(id, chavePre) {
   const novo = !id;
   const base = chavePre ? cmFornecedores().find((x) => x.k === chavePre) : null;
@@ -1497,7 +1531,7 @@ function telaCmForm(id, chavePre) {
       ${f("respostas", "Respostas", "number", d.respostas, ' min="0" step="1" inputmode="numeric"')}
       ${f("orcamentos", "Orçamentos", "number", d.orcamentos, ' min="0" step="1" inputmode="numeric"')}
       <label class="campo largo" for="c_obs">Observação<textarea id="c_obs" rows="3"${dis}>${esc(d.obs || "")}</textarea></label>
-    </div></fieldset>
+    </div>${orcBloco(id)}</fieldset>
     <div class="acoes">
       ${state.podeEditar ? `<button type="submit" class="btn" id="cmSalvar">${novo ? "Registrar envio" : "Salvar alterações"}</button>` : ""}
       <button type="button" class="btn secundario" data-ir="${voltar}">Voltar</button>
@@ -1515,20 +1549,39 @@ async function salvarCm(form) {
   if (!v("empresa")) { aviso("Informe o fornecedor.", true); $("c_empresa").focus(); return; }
   const agora = new Date().toISOString();
   const metricas = p("delivered_pct") != null || p("opened_pct") != null || p("clicked_pct") != null;
+  const orcs = orcDoForm(); const tirar = (form.dataset.orcTirar || "").split(",").filter(Boolean);
+  const nOrc = orcs.length ? Math.max(n("orcamentos") ?? 0, orcs.length) : n("orcamentos");
   const dados = {
     frente: "coldmail", empresa: v("empresa"), chave: v("chave"), produto: v("produto"), solicitante: v("solicitante"),
     data_solicitacao: v("data_solicitacao"), data_disparo: v("data_disparo"), base_ab: v("base_ab") || "Inteira",
     remetente: v("remetente"), assunto: v("assunto"), base_link: v("base_link"), tamanho_base: n("tamanho_base"), base_limpa: n("base_limpa"),
     bm: { enviados: n("enviados") ?? (metricas ? n("base_limpa") : null), delivered_pct: p("delivered_pct"), opened_pct: p("opened_pct"), clicked_pct: p("clicked_pct"), bounced_pct: p("bounced_pct") },
-    respostas: n("respostas"), orcamentos: n("orcamentos"), obs: v("obs"), atualizado_em: agora,
+    respostas: n("respostas"), orcamentos: nOrc, obs: v("obs"), atualizado_em: agora,
   };
   const btn = $("cmSalvar"); if (btn) btn.disabled = true;
   try {
-    if (form.dataset.id) await db.collection("institucional").doc(form.dataset.id).update(dados);
-    else await db.collection("institucional").doc("cm-" + Date.now().toString(36)).set({ ...dados, criado_em: agora });
+    const envioId = form.dataset.id || "cm-" + Date.now().toString(36);
+    if (form.dataset.id) await db.collection("institucional").doc(envioId).update(dados);
+    else { await db.collection("institucional").doc(envioId).set({ ...dados, criado_em: agora }); form.dataset.id = envioId; }
     const k = normChave(dados.chave) || "sem-id:" + dados.empresa.toLowerCase();
-    const i = form.dataset.id ? state.cm.findIndex((x) => x.id === form.dataset.id) : -1;
+    const i = state.cm.findIndex((x) => x.id === envioId);
     if (i >= 0) Object.assign(state.cm[i], dados);
+    if (orcs.length || tirar.length) {
+      try {
+        const lote = db.batch(); const salvos = [];
+        orcs.forEach((o, j) => {
+          const oid = o._id || `orc-${Date.now().toString(36)}-${j}`; const x = { frente: "coldmail", envio: envioId, chave: dados.chave, fornecedor: dados.empresa, atualizado_em: agora };
+          ORC_CAMPOS.forEach(([c]) => (x[c] = o[c])); if (!o._id) x.criado_em = agora;
+          lote.set(db.collection("orcamentos").doc(oid), x, { merge: true }); salvos.push({ _id: oid, ...x });
+        });
+        tirar.forEach((oid) => lote.delete(db.collection("orcamentos").doc(oid)));
+        await lote.commit();
+        state.orcs = [...state.orcs.filter((o) => !tirar.includes(o._id) && !salvos.some((s) => s._id === o._id)), ...salvos];
+      } catch (e) {
+        if (btn) btn.disabled = false;
+        return aviso(semPermissao(e) ? "O envio foi salvo, mas o detalhe dos orçamentos não: o banco ainda não libera esse registro." : "O envio foi salvo, mas o detalhe dos orçamentos não. Tente salvar de novo.", true);
+      }
+    }
     ir({ tipo: "cmf", id: k }, true);
   } catch (e) {
     if (btn) btn.disabled = false;
@@ -2164,6 +2217,9 @@ state.vista = lerVista();
 
 /* ---------- eventos ---------- */
 document.addEventListener("click", (ev) => {
+  if (ev.target.closest("[data-orc-add]")) { const ls = $("orcLinhas"); if (ls) { ls.insertAdjacentHTML("beforeend", orcLinha()); ls.lastElementChild.querySelector("input").focus(); } return; }
+  const otr = ev.target.closest("[data-orc-tirar]");
+  if (otr) { const l = otr.closest(".orc-linha"); const f = $("cmForm"); if (l.dataset.orc && f) f.dataset.orcTirar = [f.dataset.orcTirar, l.dataset.orc].filter(Boolean).join(","); l.remove(); return; }
   if (ev.target.closest("[data-tema]")) return trocarTema();
   if (ev.target.closest("[data-atualizar]")) return irParaVersao(versaoNova || VERSAO);
   const vs = ev.target.closest("[data-vista]");
@@ -2217,6 +2273,19 @@ document.addEventListener("click", (ev) => {
 });
 document.addEventListener("submit", (ev) => { if (ev.target.id === "instForm") { ev.preventDefault(); salvarInst(ev.target); } if (ev.target.id === "cmForm") { ev.preventDefault(); salvarCm(ev.target); } if (ev.target.id === "fidForm") { ev.preventDefault(); salvarFid(ev.target); } if (ev.target.id === "czForm") { ev.preventDefault(); salvarCzForm(ev.target); } });
 document.addEventListener("toggle", (ev) => { if (ev.target.id === "leadsDet") state.leadsAberto = ev.target.open; }, true);
+document.addEventListener("paste", (ev) => {
+  const inp = ev.target.closest?.(".orc-linha input"); if (!inp) return;
+  const txt = (ev.clipboardData?.getData("text") || "").replace(/\r/g, "");
+  if (!/[\t\n]/.test(txt.trim())) return;
+  ev.preventDefault();
+  const ini = Math.max(0, ORC_CAMPOS.findIndex(([k]) => k === inp.dataset.oc));
+  const linhas = txt.split("\n").filter((l) => l.trim() && !/^\s*data\s*\t\s*id/i.test(l));
+  let linha = inp.closest(".orc-linha");
+  linhas.forEach((l, n) => {
+    if (n > 0) { $("orcLinhas").insertAdjacentHTML("beforeend", orcLinha()); linha = $("orcLinhas").lastElementChild; }
+    l.split("\t").forEach((val, j) => { const c = ORC_CAMPOS[ini + j]; const el = c && linha.querySelector(`[data-oc="${c[0]}"]`); if (el) el.value = c[2] === "date" ? czData(val) || "" : val.trim(); });
+  });
+});
 document.addEventListener("input", (ev) => {
   if (ev.target.id === "busca") { state.busca = ev.target.value; renderLeadsSomente(); }
   if (ev.target.id === "czbusca") { state.busca = ev.target.value; renderCzLeads(); }
@@ -2343,7 +2412,7 @@ function telaConfirmarEmail(msg) {
 function limparDados() {
   assinaturas.forEach((parar) => { try { parar(); } catch (e) {} }); assinaturas = [];
   iniciado = false;
-  Object.assign(state, { pastas: [], estrategia: null, disparos: [], leads: [], bases: {}, inst: [], cm: [], cz: [], czLeads: [], carregado: {}, czSel: new Set(), fidSel: new Set(), leadsOk: false, czOk: false, podeEditar: false });
+  Object.assign(state, { pastas: [], estrategia: null, disparos: [], leads: [], bases: {}, inst: [], cm: [], cz: [], czLeads: [], carregado: {}, czSel: new Set(), fidSel: new Set(), leadsOk: false, czOk: false, orcs: [], orcOk: false, orcErro: false, podeEditar: false });
 }
 (function () {
   const cfg = window.FIREBASE_CONFIG || {};
@@ -2448,6 +2517,7 @@ function limparDados() {
     ouvir("leads", (s) => { state.leads = s.docs.map((d) => ({ _id: d.id, ...d.data() })); state.leadsOk = state.leads.length > 0; chegou("leads"); }, () => { state.leadsOk = false; chegou("leads"); });
     ouvir("institucional", (s) => { const docs = s.docs.map((d) => ({ id: d.id, ...d.data() })); state.inst = docs.filter((d) => d.frente !== "coldmail"); state.cm = docs.filter((d) => d.frente === "coldmail"); chegou("inst"); }, () => chegou("inst"));
     ouvir("coldzap", (s) => { state.cz = s.docs.map((d) => ({ id: d.id, ...d.data() })); chegou("cz"); }, () => chegou("cz"));
+    ouvir("orcamentos", (s) => { state.orcs = s.docs.map((d) => ({ _id: d.id, ...d.data() })); state.orcOk = true; state.orcErro = false; chegou("orc"); }, () => { state.orcOk = false; state.orcErro = true; chegou("orc"); });
     ouvir("coldzap_leads", (s) => { state.czLeads = s.docs.map((d) => ({ _id: d.id, ...d.data() })); state.czOk = true; chegou("czl"); }, () => { state.czOk = false; chegou("czl"); });
   });
 })();

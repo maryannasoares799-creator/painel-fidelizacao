@@ -37,6 +37,7 @@ service cloud.firestore {
     match /leads/{id}         { allow read, write: if operador(); }
     match /bases/{id}         { allow read, write: if operador(); }
     match /coldzap_leads/{id} { allow read, write: if operador(); }
+    match /orcamentos/{id}    { allow read, write: if operador(); } // detalhe dos orçamentos recebidos (comprador, e-mail, telefone)
 
     // Cada pessoa só consegue ver se o próprio e-mail é de operador.
     match /operadores/{email} {

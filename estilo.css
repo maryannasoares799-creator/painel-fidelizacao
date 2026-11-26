@@ -402,7 +402,7 @@ tr:last-child td { border-bottom: 0; }
 .who small { color: var(--muted); font-size: 12px; word-break: break-all; }
 .pedido { color: var(--muted); font-size: 13px; max-width: 300px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .pedido + .note { display: block; white-space: nowrap; }
-select, input[type="text"], input[type="search"], input[type="number"], input[type="date"], input[type="email"], textarea { font: 14px var(--body); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; }
+select, input[type="text"], input[type="search"], input[type="number"], input[type="date"], input[type="email"], input[type="tel"], textarea { font: 14px var(--body); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; }
 select:hover, input:hover, textarea:hover { border-color: color-mix(in srgb, var(--primaria) 40%, var(--line)); }
 select.st-interessado, select.env-enviado { background: var(--ok-soft); color: var(--ok); border-color: color-mix(in srgb, var(--ok) 50%, var(--line)); }
 select.st-sem_interesse { background: var(--neutro-soft); color: var(--ink-2); border-color: color-mix(in srgb, var(--neutro) 50%, var(--line)); }
@@ -530,6 +530,24 @@ td.nowrap { white-space: nowrap; }
 .analise-barra .btn { padding: 6px 12px; font-size: 13px; }
 .fonte-analise { display: flex; gap: 6px; align-items: center; font-weight: 600; color: var(--ink-2); margin-bottom: 3px; }
 .fonte-analise i { color: var(--primaria); font-size: 15px; }
+/* Detalhe dos orçamentos (envio de cold mail) */
+.orc-bloco { display: grid; gap: 12px; border-top: 1px solid var(--line-soft); padding-top: 14px; margin-top: 4px; }
+.orc-cab { display: grid; gap: 3px; }
+.orc-cab b { display: flex; gap: 6px; align-items: center; font-size: 14.5px; color: var(--ink); }
+.orc-cab b i { color: var(--primaria); font-size: 17px; }
+.orc-linhas { display: grid; gap: 12px; }
+.orc-linhas:empty { display: none; }
+.orc-linha { display: grid; gap: 10px; border: 1px solid var(--line-soft); border-radius: 12px; padding: 12px 14px; background: var(--surface-2); }
+.orc-linha .campos { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.orc-linha input { width: 100%; padding: 8px 11px; }
+.orc-tirar { justify-self: end; padding: 5px 10px; font-size: 12.5px; }
+.orc-tabela { display: grid; gap: 8px; }
+.orc-titulo { display: flex; gap: 6px; align-items: center; font-size: 13.5px; }
+.orc-titulo i { color: var(--primaria); font-size: 16px; }
+.orc-tabela table { font-size: 13px; }
+.orc-tabela :is(td, th) { padding: 8px 10px; }
+.orc-tabela th { white-space: normal; vertical-align: bottom; }
+.orc-tabela td:is(.c-data, .c-id_orcamento, .c-email, .c-telefone, .c-regiao, .c-perfil) { white-space: nowrap; }
 .analise-nota { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--ink-2); background: var(--surface-2); border: 1px dashed var(--line); border-radius: 10px; padding: 10px 14px; }
 .analise-nota i { color: var(--primaria); font-size: 16px; margin-top: 1px; }
 .de-para-linha small, .segmento li small { display: block; font: 500 11.5px var(--mono); color: var(--primaria-ink); margin-top: 3px; }
