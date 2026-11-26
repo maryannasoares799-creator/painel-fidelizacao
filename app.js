@@ -1431,7 +1431,7 @@ function telaCmFornecedor(k) {
   const envio = (d) => { const s = instSomar([d]); const sit = cmSituacao(d); const tem = temMetrica(d);
     return `<article class="envio cm" aria-label="${baseNome(d)}">
       <div class="envio-top"><div><b>${baseNome(d)}</b><span class="note">${d.data_disparo ? (sit.k === "programado" ? "Programado para " : "Disparo em ") + fmtData(d.data_disparo) : "Sem data de disparo"}${d.remetente ? " · remetente " + esc(d.remetente) : ""}</span></div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${sit.chip}${state.podeEditar ? `<button type="button" class="btn secundario" data-ir="cm:${esc(d.id)}"><i class="ti ti-pencil" aria-hidden="true"></i>Editar</button>` : ""}</div></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${sit.chip}${state.podeEditar ? `<button type="button" class="btn secundario" data-orc-ir="${esc(d.id)}"><i class="ti ti-file-invoice" aria-hidden="true"></i>Registrar orçamento</button><button type="button" class="btn secundario" data-ir="cm:${esc(d.id)}"><i class="ti ti-pencil" aria-hidden="true"></i>Editar</button>` : ""}</div></div>
       <div class="mini mini-6"><div><b>${num(d.tamanho_base) ?? "—"}</b><span>Tamanho da base</span></div><div><b>${num(d.base_limpa) ?? "—"}</b><span>Base limpa</span></div>
         <div><b>${tem ? br(pct(s.entregues, s.env)) + "%" : "—"}</b><span>Entregues</span></div><div><b>${tem ? br(pct(s.abertos, s.entregues)) + "%" : "—"}</b><span>Lido</span></div>
         <div><b>${tem ? br(pct(s.cliques, s.entregues)) + "%" : "—"}</b><span>Cliques</span></div><div><b>${num(d.respostas) ?? "—"} / ${num(d.orcamentos) ?? "—"}</b><span>Respostas / orçamentos</span></div></div>
@@ -1471,7 +1471,7 @@ const orcLinha = (o = {}) => `<div class="orc-linha" data-orc="${esc(o._id || ""
   <button type="button" class="btn secundario orc-tirar" data-orc-tirar="1"><i class="ti ti-trash" aria-hidden="true"></i>Tirar este orçamento</button></div>`;
 function orcBloco(envioId) {
   if (!state.podeEditar) return "";
-  if (state.orcErro) return `<p class="analise-nota"><i class="ti ti-lock" aria-hidden="true"></i>O detalhe dos orçamentos ainda não está liberado no banco do painel. Falta publicar a regra nova do Firestore.</p>`;
+  if (state.orcErro) return `<p class="analise-nota orc-aviso"><i class="ti ti-lock" aria-hidden="true"></i>O detalhe dos orçamentos ainda não está liberado no banco do painel. Falta publicar a regra nova do Firestore.</p>`;
   const valores = (k) => [...new Set((state.orcs || []).map((o) => String(o[k] || "").trim()).filter(Boolean))].sort();
   return `<div class="orc-bloco"><div class="orc-cab"><b><i class="ti ti-file-invoice" aria-hidden="true"></i>Detalhe dos orçamentos</b>
       <span class="note">Um por lead. Dica: copie a linha da planilha (Data, ID, Produto/Serviço…) e cole no campo Data, que o painel preenche os outros campos. Ao salvar, o número de Orçamentos acompanha a lista.</span></div>
@@ -2217,6 +2217,15 @@ state.vista = lerVista();
 
 /* ---------- eventos ---------- */
 document.addEventListener("click", (ev) => {
+  const oir = ev.target.closest("[data-orc-ir]");
+  if (oir) {
+    ir({ tipo: "cm", id: oir.dataset.orcIr });
+    const ls = $("orcLinhas"); if (ls) ls.insertAdjacentHTML("beforeend", orcLinha());
+    const alvo = document.querySelector(".orc-bloco, .orc-aviso");
+    if (alvo) { alvo.scrollIntoView({ block: "start" }); window.scrollBy(0, -16); }
+    ls?.lastElementChild?.querySelector("input")?.focus({ preventScroll: true });
+    return;
+  }
   if (ev.target.closest("[data-orc-add]")) { const ls = $("orcLinhas"); if (ls) { ls.insertAdjacentHTML("beforeend", orcLinha()); ls.lastElementChild.querySelector("input").focus(); } return; }
   const otr = ev.target.closest("[data-orc-tirar]");
   if (otr) { const l = otr.closest(".orc-linha"); const f = $("cmForm"); if (l.dataset.orc && f) f.dataset.orcTirar = [f.dataset.orcTirar, l.dataset.orc].filter(Boolean).join(","); l.remove(); return; }
